@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 const LoanPage = () => {
   // Contract and wallet state
-  const contractAddress = "0x463942083D67Fe0fF490D6Bd1F4c6e671c0C309a";
+  const contractAddress = "0x1E6c3c940b8C9Fd7d6546EbA6105237e508b4201";
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
   const [isConnected, setIsConnected] = useState(false);

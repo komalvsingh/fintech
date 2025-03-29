@@ -10,7 +10,7 @@ const LoanDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const loanId = params.id;
-  const contractAddress = "0x463942083D67Fe0fF490D6Bd1F4c6e671c0C309a";
+  const contractAddress = "0x1E6c3c940b8C9Fd7d6546EbA6105237e508b4201";
   
   const [loan, setLoan] = useState(null);
   const [loading, setLoading] = useState(true);

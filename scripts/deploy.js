@@ -19,13 +19,13 @@ async function main() {
 //     const creditScoreAddress = creditScore.target;
 //     console.log("Credit Score Contract deployed at:", creditScoreAddress);
 
-//     // Deploy DAO Contract (passing Loan Contract address)
-//     console.log("Deploying DAO Contract...");
-//     const DAOContract = await ethers.getContractFactory("DAOContract");
-//     const daoContract = await DAOContract.deploy(String(loanContractAddress)); // Convert to string
-//     await daoContract.waitForDeployment();
-//     const daoContractAddress = daoContract.target;
-//     console.log("DAO Contract deployed at:", daoContractAddress);
+    // Deploy DAO Contract (passing Loan Contract address)
+    console.log("Deploying DAO Contract...");
+    const DAOContract = await ethers.getContractFactory("DAOContract");
+    const daoContract = await DAOContract.deploy(String(loanContractAddress)); // Convert to string
+    await daoContract.waitForDeployment();
+    const daoContractAddress = daoContract.target;
+    console.log("DAO Contract deployed at:", daoContractAddress);
 
 //     console.log("\n✅ Deployment Complete!");
 //     console.log(`LOAN_CONTRACT_ADDRESS="${loanContractAddress}"`);

@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import DAOContractABI from '../../../lib/DAOContract.json';
 
 const DAOMembersPage = () => {
-  const daoContractAddress = "0x3BfC9C9A6BA115223283ffA1a1CdE90a9D6e187b"; // Replace with your deployed DAO contract address
+  const daoContractAddress = "0x59A139652C16982cec62120854Ffa231f36B2AAD"; // Replace with your deployed DAO contract address
   
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);

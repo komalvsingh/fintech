@@ -95,22 +95,24 @@ const RepaymentPage = () => {
         signer
       );
       
-      // Get user's loans - assuming you've added the getUserLoans function to your contract
-      const loanIds = await contract.getUserLoans();
+      // Get user's loans
+      const loanIds = await contract.getUserLoans(account);
       
       if (loanIds.length > 0) {
         // Get details for all loans
         const loanDetails = await contract.getMultipleLoans(loanIds);
         
-        // Format loan data
-        const formattedLoans = loanDetails.map((loan, index) => ({
-          id: loan.id,
-          amount: ethers.formatEther(loan.amount),
-          rawAmount: loan.amount,
-          repaymentDue: new Date(Number(loan.repaymentDue) * 1000).toLocaleDateString(),
-          isApproved: loan.isApproved,
-          isPaid: loan.isPaid
-        }));
+        // Create new objects from the read-only objects returned by the contract
+        const formattedLoans = Array.from(loanDetails).map((loan) => {
+          return {
+            id: BigInt(loan.id),
+            amount: ethers.formatEther(loan.amount),
+            rawAmount: loan.amount,
+            repaymentDue: new Date(Number(loan.repaymentDue) * 1000).toLocaleDateString(),
+            isApproved: loan.isApproved,
+            isPaid: loan.isPaid
+          };
+        });
         
         // Filter for approved, unpaid loans
         const activeLoans = formattedLoans.filter(loan => 
@@ -123,7 +125,7 @@ const RepaymentPage = () => {
       }
     } catch (err) {
       console.error("Error fetching loans:", err);
-      setError("Failed to fetch loans. Make sure your contract has getUserLoans and getMultipleLoans functions.");
+      setError("Failed to fetch loans: " + err.message);
     } finally {
       setLoadingLoans(false);
     }

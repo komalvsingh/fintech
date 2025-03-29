@@ -5,25 +5,28 @@ import LoanContractABI from "../../lib/LoanContract.json";
 import Link from 'next/link';
 
 const LoanPage = () => {
-  // Existing state variables
+  // Contract and wallet state
   const contractAddress = "0x463942083D67Fe0fF490D6Bd1F4c6e671c0C309a";
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  
+  // Form state
   const [amount, setAmount] = useState("");
   const [duration, setDuration] = useState("30"); // Default 30 days
-  // Add missing state variables
   const [purpose, setPurpose] = useState("");
   const [collateral, setCollateral] = useState("");
+  
+  // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   
-  // New state for loans
+  // Loans state
   const [loans, setLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
 
-  // Connect to MetaMask - existing function
+  // Connect to MetaMask
   const connectWallet = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
@@ -84,11 +87,12 @@ const LoanPage = () => {
     };
   }, []);
 
-  // New function to fetch loans
+  // Fetch loans using the contract's getUserLoans function
   const fetchLoans = async () => {
     if (!signer || !account) return;
     
     setLoadingLoans(true);
+    setError(null);
     
     try {
       const contract = new ethers.Contract(
@@ -97,58 +101,53 @@ const LoanPage = () => {
         signer
       );
       
-      const userLoans = [];
+      console.log("Fetching loans for account:", account);
       
-      // This is a placeholder - you'll need to implement a way to get loan IDs
-      for (let i = 0; i < 10; i++) {
-        try {
-          // Generate a simple hash for demo purposes
-          const loanId = ethers.keccak256(
-            ethers.solidityPacked(
-              ['address', 'uint256'],
-              [account, i]
-            )
-          );
-          
-          const loan = await contract.loans(loanId);
-          
-          // Check if this is a valid loan for this user
-          if (loan.borrower.toLowerCase() === account.toLowerCase() && loan.amount > 0) {
-            // Basic loan data from blockchain
-            const loanData = {
-              id: loanId,
+      // Get loan IDs associated with this user
+      const loanIds = await contract.getUserLoans(account);
+      console.log("User loan IDs:", loanIds);
+      
+      if (loanIds.length === 0) {
+        setLoans([]);
+        setLoadingLoans(false);
+        return;
+      }
+      
+      // Convert BigInts to strings for each loan ID
+      const loanIdStrings = loanIds.map(id => id.toString());
+      console.log("Loan IDs as strings:", loanIdStrings);
+      
+      // Fetch each loan's details
+      const userLoans = await Promise.all(
+        loanIds.map(async (id) => {
+          try {
+            const loan = await contract.loans(id);
+            console.log(`Loan ${id.toString()} details:`, loan);
+            
+            return {
+              id: id.toString(),
+              borrower: loan.borrower,
               amount: ethers.formatEther(loan.amount),
               repaymentDue: new Date(Number(loan.repaymentDue) * 1000).toLocaleDateString(),
               isApproved: loan.isApproved,
-              isPaid: loan.isPaid
+              isPaid: loan.isPaid,
+              // You could add purpose and collateral here if stored in IPFS
             };
-            
-            // Try to fetch IPFS data if available
-            try {
-              // Check if your contract stores IPFS hash
-              if (loan.ipfsHash) {
-                const ipfsData = await fetchLoanApplication(loan.ipfsHash);
-                // Merge blockchain data with IPFS data
-                loanData.purpose = ipfsData.purpose;
-                loanData.collateral = ipfsData.collateral;
-              }
-            } catch (ipfsErr) {
-              console.error("Error fetching IPFS data:", ipfsErr);
-              // Continue with just blockchain data
-            }
-            
-            userLoans.push(loanData);
+          } catch (err) {
+            console.error(`Error fetching loan ${id.toString()}:`, err);
+            return null;
           }
-        } catch (err) {
-          console.log("Error fetching loan", i, err);
-          // Continue to next loan
-        }
-      }
+        })
+      );
       
-      setLoans(userLoans);
+      // Filter out any null values from failed fetches
+      const validLoans = userLoans.filter(loan => loan !== null);
+      console.log("Fetched loans:", validLoans);
+      
+      setLoans(validLoans);
     } catch (err) {
       console.error("Error fetching loans:", err);
-      setError("Failed to fetch loans");
+      setError("Failed to fetch loans: " + err.message);
     } finally {
       setLoadingLoans(false);
     }
@@ -179,9 +178,6 @@ const LoanPage = () => {
     setSuccess(false);
     
     try {
-      // First, store loan data on IPFS if you have the IPFS functions imported
-      // For now, we'll just use the blockchain
-      
       const contract = new ethers.Contract(
         contractAddress,
         LoanContractABI.abi,
@@ -194,16 +190,25 @@ const LoanPage = () => {
       // Convert duration to seconds
       const durationInSeconds = parseInt(duration) * 24 * 60 * 60;
       
+      console.log(`Requesting loan of ${amount} ETH for ${duration} days (${durationInSeconds} seconds)`);
+      
+      // Call the requestLoan function
       const tx = await contract.requestLoan(amountInWei, durationInSeconds);
-      await tx.wait();
+      console.log("Transaction sent:", tx.hash);
+      
+      // Wait for transaction to be mined
+      console.log("Waiting for transaction confirmation...");
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
       
       setSuccess(true);
       setAmount("");
       setDuration("30");
-      setPurpose(""); // Reset purpose field
-      setCollateral(""); // Reset collateral field
+      setPurpose(""); 
+      setCollateral("");
       
       // Fetch updated loans after successful submission
+      console.log("Waiting before refreshing loans...");
       setTimeout(() => {
         fetchLoans();
       }, 2000); // Give the blockchain some time to process
@@ -281,7 +286,6 @@ const LoanPage = () => {
                 </select>
               </div>
               
-              {/* Add purpose field */}
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="purpose">
                   Loan Purpose
@@ -296,7 +300,6 @@ const LoanPage = () => {
                 />
               </div>
               
-              {/* Add collateral field */}
               <div className="mb-6">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="collateral">
                   Collateral (Optional)
@@ -331,7 +334,7 @@ const LoanPage = () => {
             ) : loans.length > 0 ? (
               <div className="space-y-4">
                 {loans.map((loan, index) => (
-                  <div key={index} className="border rounded-lg p-4">
+                  <div key={loan.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">Loan #{index + 1}</span>
                       <span className={`px-2 py-1 rounded text-xs ${
@@ -358,7 +361,6 @@ const LoanPage = () => {
                         <p>{loan.repaymentDue}</p>
                       </div>
                       
-                      {/* Display IPFS data if available */}
                       {loan.purpose && (
                         <div className="col-span-2">
                           <p className="text-gray-500">Purpose</p>
@@ -374,7 +376,6 @@ const LoanPage = () => {
                       )}
                     </div>
                     
-                    {/* Add View Details link */}
                     <div className="mt-3 flex justify-end">
                       <Link href={`/loan/${loan.id}`}>
                         <span className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">

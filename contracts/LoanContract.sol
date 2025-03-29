@@ -15,6 +15,9 @@ contract LoanContract {
         bool isPaid;
     }
 
+    // Add a mapping to track user loans
+    mapping(address => uint256[]) private userLoans;
+    
     function requestLoan(uint256 amount, uint256 duration) external {
         uint256 loanId = uint256(
             keccak256(abi.encodePacked(msg.sender, block.timestamp))
@@ -27,6 +30,9 @@ contract LoanContract {
             false,
             false
         );
+        
+        // Add loan to user's loan array
+        userLoans[msg.sender].push(loanId);
     }
 
     function voteOnLoan(uint256 loanId, bool vote) external {
@@ -91,5 +97,21 @@ contract LoanContract {
         // Initialize with a lower score than loan repayment would give
         creditScores[msg.sender] = 400; 
         hasCreditScore[msg.sender] = true;
+    }
+    
+    // Add function to get all loans for a user
+    function getUserLoans(address user) external view returns (uint256[] memory) {
+        return userLoans[user];
+    }
+    
+    // Add function to get multiple loans by their IDs
+    function getMultipleLoans(uint256[] calldata loanIds) external view returns (Loan[] memory) {
+        Loan[] memory result = new Loan[](loanIds.length);
+        
+        for (uint256 i = 0; i < loanIds.length; i++) {
+            result[i] = loans[loanIds[i]];
+        }
+        
+        return result;
     }
 }

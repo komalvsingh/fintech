@@ -220,6 +220,38 @@ const LoanPage = () => {
     }
   };
 
+  // Add repay loan function
+  const handleRepay = async (loanId, amount) => {
+    if (!signer) {
+      setError("Please connect your wallet first");
+      return;
+    }
+    
+    try {
+      const contract = new ethers.Contract(
+        contractAddress,
+        LoanContractABI.abi,
+        signer
+      );
+      
+      // Convert amount to wei
+      const amountInWei = ethers.parseEther(amount.toString());
+      
+      const tx = await contract.repayLoan(loanId, { value: amountInWei });
+      await tx.wait();
+      
+      // Update the loans list
+      fetchLoans();
+      
+      // Show success message
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err) {
+      console.error("Error repaying loan:", err);
+      setError(err.message || "Failed to repay loan");
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Apply for a Loan</h2>
@@ -252,6 +284,7 @@ const LoanPage = () => {
             )}
             
             <form onSubmit={handleSubmit}>
+              {/* Form fields remain unchanged */}
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="amount">
                   Loan Amount (ETH)
@@ -326,13 +359,16 @@ const LoanPage = () => {
             </form>
           </div>
           
+          {/* Loans Display Section - Fixed */}
           <div className="bg-white p-6 rounded-xl shadow-md">
             <h3 className="text-xl font-semibold mb-4">Your Loans</h3>
             
             {loadingLoans ? (
-              <p className="text-gray-600">Loading your loans...</p>
-            ) : loans.length > 0 ? (
-              <div className="space-y-4">
+              <div className="flex justify-center items-center h-40">
+                <p className="text-gray-600">Loading your loans...</p>
+              </div>
+            ) : loans && loans.length > 0 ? (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
                 {loans.map((loan, index) => (
                   <div key={loan.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -354,7 +390,7 @@ const LoanPage = () => {
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <p className="text-gray-500">Amount</p>
-                        <p>{loan.amount} ETH</p>
+                        <p className="font-semibold">{loan.amount} ETH</p>
                       </div>
                       <div>
                         <p className="text-gray-500">Due Date</p>
@@ -387,7 +423,10 @@ const LoanPage = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-600">You don't have any loans yet.</p>
+              <div className="flex flex-col items-center justify-center h-40">
+                <p className="text-gray-600 mb-4">You don't have any loans yet.</p>
+                <p className="text-sm text-gray-500">Use the form to apply for a loan.</p>
+              </div>
             )}
             
             <button

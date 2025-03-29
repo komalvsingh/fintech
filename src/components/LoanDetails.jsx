@@ -1,79 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { fetchLoanApplication } from '../utils/ipfs';
+import React from 'react';
 
-const LoanDetails = ({ ipfsUrl }) => {
-  const [loanData, setLoanData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const getLoanData = async () => {
-      if (!ipfsUrl) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const data = await fetchLoanApplication(ipfsUrl);
-        setLoanData(data);
-        setError(null);
-      } catch (err) {
-        console.error('Failed to fetch loan data:', err);
-        setError('Failed to load loan details. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getLoanData();
-  }, [ipfsUrl]);
-
-  if (loading) {
-    return <div className="p-4 text-center">Loading loan details...</div>;
-  }
-
-  if (error) {
-    return <div className="p-4 text-red-500">{error}</div>;
-  }
-
-  if (!loanData) {
+const LoanDetails = ({ loan }) => {
+  if (!loan) {
     return <div className="p-4 text-center">No loan data available</div>;
   }
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold mb-4">Loan Application Details</h3>
+      <h3 className="text-xl font-semibold mb-4">Loan Details</h3>
       
       <div className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-gray-600 text-sm">Amount</p>
-          <p className="font-medium">{loanData.amount} ETH</p>
+          <p className="font-medium">{loan.amount} ETH</p>
         </div>
         
         <div>
           <p className="text-gray-600 text-sm">Duration</p>
-          <p className="font-medium">{loanData.duration} days</p>
+          <p className="font-medium">{loan.duration || "30"} days</p>
         </div>
         
-        {loanData.purpose && (
-          <div className="col-span-2">
-            <p className="text-gray-600 text-sm">Purpose</p>
-            <p className="font-medium">{loanData.purpose}</p>
-          </div>
-        )}
+        <div>
+          <p className="text-gray-600 text-sm">Status</p>
+          <p className="font-medium">
+            {loan.isPaid 
+              ? 'Repaid' 
+              : loan.isApproved 
+                ? 'Approved' 
+                : 'Pending'}
+          </p>
+        </div>
         
-        {loanData.collateral && (
-          <div className="col-span-2">
-            <p className="text-gray-600 text-sm">Collateral</p>
-            <p className="font-medium">{loanData.collateral}</p>
-          </div>
-        )}
+        <div>
+          <p className="text-gray-600 text-sm">Repayment Due</p>
+          <p className="font-medium">{loan.repaymentDue}</p>
+        </div>
         
         <div className="col-span-2">
-          <p className="text-gray-600 text-sm">Timestamp</p>
-          <p className="font-medium">{new Date(loanData.timestamp).toLocaleString()}</p>
+          <p className="text-gray-600 text-sm">Borrower</p>
+          <p className="font-medium text-xs break-all">{loan.borrower}</p>
         </div>
+        
+        {loan.purpose && (
+          <div className="col-span-2">
+            <p className="text-gray-600 text-sm">Purpose</p>
+            <p className="font-medium">{loan.purpose}</p>
+          </div>
+        )}
+        
+        {loan.collateral && (
+          <div className="col-span-2">
+            <p className="text-gray-600 text-sm">Collateral</p>
+            <p className="font-medium">{loan.collateral}</p>
+          </div>
+        )}
+        
+        {loan.id && (
+          <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+            <p className="text-gray-600 text-sm">Loan ID</p>
+            <p className="font-mono text-xs break-all">{loan.id}</p>
+          </div>
+        )}
       </div>
     </div>
   );

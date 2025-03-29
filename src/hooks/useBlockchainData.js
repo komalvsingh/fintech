@@ -26,42 +26,50 @@ export default function useBlockchainData() {
     try {
       if (!window.ethereum) throw new Error("No Ethereum wallet found");
       
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      // Updated to use ethers v6 syntax
+      const provider = new ethers.BrowserProvider(window.ethereum);
       setProvider(provider);
       
-      const signer = provider.getSigner();
+      const signer = await provider.getSigner();
       setSigner(signer);
       
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       setAccount(accounts[0]);
       
-      const creditScoreContract = new ethers.Contract(
-        CREDIT_SCORE_ADDRESS,
-        CreditScoreABI.abi,
-        signer
-      );
-      setCreditScoreContract(creditScoreContract);
+      // Initialize contracts with the correct addresses
+      if (CREDIT_SCORE_ADDRESS) {
+        const creditScoreContract = new ethers.Contract(
+          CREDIT_SCORE_ADDRESS,
+          CreditScoreABI.abi,
+          signer
+        );
+        setCreditScoreContract(creditScoreContract);
+      }
       
-      const loanContract = new ethers.Contract(
-        LOAN_CONTRACT_ADDRESS,
-        LoanContractABI.abi,
-        signer
-      );
-      setLoanContract(loanContract);
+      if (LOAN_CONTRACT_ADDRESS) {
+        const loanContract = new ethers.Contract(
+          LOAN_CONTRACT_ADDRESS,
+          LoanContractABI.abi,
+          signer
+        );
+        setLoanContract(loanContract);
+        
+        // Fetch credit score if available
+        try {
+          const score = await loanContract.getCreditScore();
+          setCreditScore(Number(score));
+        } catch (error) {
+          console.log("Credit score not available yet:", error.message);
+        }
+      }
       
-      const daoContract = new ethers.Contract(
-        DAO_CONTRACT_ADDRESS,
-        DAOContractABI.abi,
-        signer
-      );
-      setDaoContract(daoContract);
-      
-      // Fetch credit score if available
-      try {
-        const score = await loanContract.getCreditScore();
-        setCreditScore(score.toNumber());
-      } catch (error) {
-        console.log("Credit score not available yet:", error.message);
+      if (DAO_CONTRACT_ADDRESS) {
+        const daoContract = new ethers.Contract(
+          DAO_CONTRACT_ADDRESS,
+          DAOContractABI.abi,
+          signer
+        );
+        setDaoContract(daoContract);
       }
       
       setLoading(false);
@@ -75,11 +83,13 @@ export default function useBlockchainData() {
   // Credit score functions
   const initializeCreditScore = async () => {
     try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
       const tx = await loanContract.initializeCreditScore();
       await tx.wait();
       const score = await loanContract.getCreditScore();
-      setCreditScore(score.toNumber());
-      return score.toNumber();
+      setCreditScore(Number(score));
+      return Number(score);
     } catch (error) {
       console.error("Failed to initialize credit score:", error);
       throw error;
@@ -89,13 +99,15 @@ export default function useBlockchainData() {
   const getCreditScore = async (address = null) => {
     try {
       let score;
-      if (address) {
+      if (address && creditScoreContract) {
         score = await creditScoreContract.getCreditScore(address);
-      } else {
+      } else if (loanContract) {
         score = await loanContract.getCreditScore();
+      } else {
+        throw new Error("No contract available to get credit score");
       }
-      setCreditScore(score.toNumber());
-      return score.toNumber();
+      setCreditScore(Number(score));
+      return Number(score);
     } catch (error) {
       console.error("Failed to get credit score:", error);
       return null;
@@ -105,8 +117,10 @@ export default function useBlockchainData() {
   // Loan functions
   const requestLoan = async (amount, duration) => {
     try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
       const tx = await loanContract.requestLoan(
-        ethers.utils.parseEther(amount.toString()),
+        ethers.parseEther(amount.toString()),
         duration
       );
       await tx.wait();
@@ -119,6 +133,8 @@ export default function useBlockchainData() {
 
   const voteOnLoan = async (loanId, vote) => {
     try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
       const tx = await loanContract.voteOnLoan(loanId, vote);
       await tx.wait();
       return true;
@@ -130,8 +146,10 @@ export default function useBlockchainData() {
 
   const disburseLoan = async (loanId, amount) => {
     try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
       const tx = await loanContract.disburseLoan(loanId, {
-        value: ethers.utils.parseEther(amount.toString())
+        value: ethers.parseEther(amount.toString())
       });
       await tx.wait();
       return true;
@@ -143,8 +161,18 @@ export default function useBlockchainData() {
 
   const repayLoan = async (loanId, amount) => {
     try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
+      // For ethers v6, we need to ensure amount is a BigInt if it's not already
+      let value;
+      if (typeof amount === 'string') {
+        value = ethers.parseEther(amount);
+      } else {
+        value = amount; // Assume it's already a BigInt
+      }
+      
       const tx = await loanContract.repayLoan(loanId, {
-        value: ethers.utils.parseEther(amount.toString())
+        value: value
       });
       await tx.wait();
       return true;
@@ -154,11 +182,45 @@ export default function useBlockchainData() {
     }
   };
 
+  // Add getUserLoans function
+  const getUserLoans = async (userAddress = null) => {
+    try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
+      const address = userAddress || account;
+      if (!address) throw new Error("No address provided");
+      
+      // Call the getUserLoans function from the contract
+      const loanIds = await loanContract.getUserLoans(address);
+      return loanIds;
+    } catch (error) {
+      console.error("Failed to get user loans:", error);
+      throw error;
+    }
+  };
+
+  // Add getMultipleLoans function
+  const getMultipleLoans = async (loanIds) => {
+    try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      if (!loanIds || loanIds.length === 0) return [];
+      
+      // Call the getMultipleLoans function from the contract
+      const loans = await loanContract.getMultipleLoans(loanIds);
+      return loans;
+    } catch (error) {
+      console.error("Failed to get multiple loans:", error);
+      throw error;
+    }
+  };
+
   // DAO functions
   const requestDAOLoan = async (amount) => {
     try {
+      if (!daoContract) throw new Error("DAO contract not initialized");
+      
       const tx = await daoContract.requestLoan(
-        ethers.utils.parseEther(amount.toString())
+        ethers.parseEther(amount.toString())
       );
       await tx.wait();
       return true;
@@ -170,6 +232,8 @@ export default function useBlockchainData() {
 
   const voteForDAOLoan = async (requestId) => {
     try {
+      if (!daoContract) throw new Error("DAO contract not initialized");
+      
       const tx = await daoContract.voteForLoan(requestId);
       await tx.wait();
       return true;
@@ -181,6 +245,8 @@ export default function useBlockchainData() {
 
   const getLoanStatus = async (requestId) => {
     try {
+      if (!daoContract) throw new Error("DAO contract not initialized");
+      
       const status = await daoContract.getLoanStatus(requestId);
       return status;
     } catch (error) {
@@ -228,6 +294,8 @@ export default function useBlockchainData() {
     voteOnLoan,
     disburseLoan,
     repayLoan,
+    getUserLoans,
+    getMultipleLoans,
     requestDAOLoan,
     voteForDAOLoan,
     getLoanStatus

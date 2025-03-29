@@ -10,9 +10,32 @@ const LoanPage = () => {
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold">Apply for a Loan</h2>
-      <LoanForm contractAddress={contractAddress} />
+      <LoanFormWrapper contractAddress={contractAddress} />
     </div>
   );
+};
+
+// Create a wrapper component to handle the object returned by LoanForm
+const LoanFormWrapper = ({ contractAddress }) => {
+  // Assuming LoanForm is a hook or function that returns {data, loading, error}
+  const result = LoanForm({ contractAddress });
+  
+  if (!result) return <p>No loan form data available</p>;
+  
+  const { data, loading, error } = result;
+  
+  if (loading) return <p>Loading loan form...</p>;
+  if (error) return <p className="text-red-500">Error: {error.message || String(error)}</p>;
+  if (data) {
+    return (
+      <div className="mt-4">
+        {/* Render your loan form data here */}
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      </div>
+    );
+  }
+  
+  return <p>No loan form data found</p>;
 };
 
 export default LoanPage;

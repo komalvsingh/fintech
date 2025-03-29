@@ -8,9 +8,33 @@ const RepaymentPage = () => {
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold">Repayment Status</h2>
-      <RepaymentStatus contractAddress={contractAddress} />
+      <div>
+        <RepaymentStatusWrapper contractAddress={contractAddress} />
+      </div>
     </div>
   );
+};
+
+// Create a wrapper component to handle the object returned by RepaymentStatus
+const RepaymentStatusWrapper = ({ contractAddress }) => {
+  // Assuming RepaymentStatus is a hook or function that returns {data, loading, error}
+  const result = RepaymentStatus({ contractAddress });
+  
+  if (!result) return <p>No data available</p>;
+  
+  const { data, loading, error } = result;
+  
+  if (loading) return <p>Loading repayment status...</p>;
+  if (error) return <p className="text-red-500">Error: {error.message || String(error)}</p>;
+  if (data) {
+    return (
+      <div className="mt-4">
+        <pre>{JSON.stringify(data, null, 2)}</pre>
+      </div>
+    );
+  }
+  
+  return <p>No repayment data found</p>;
 };
 
 export default RepaymentPage;

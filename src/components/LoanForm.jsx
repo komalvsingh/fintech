@@ -1,7 +1,7 @@
 "use client"; // Ensures it runs on the client side in Next.js
 
 import React, { useState, useEffect } from "react";
-import LoanABI from "../../artifacts/contracts/LoanContract.sol/LoanContract.json";
+import LoanABI from "../lib/LoanContract.json";
 import useWeb3Auth from "../hooks/useWeb3Auth";
 
 const LoanForm = ({ contractAddress }) => {

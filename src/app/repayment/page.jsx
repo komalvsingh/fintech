@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import RepaymentStatus from "@/components/RepaymentStatus";
+import RepaymentStatus from "../../components/RepaymentStatus";
 
 const RepaymentPage = () => {
   const contractAddress = "0x9549E4495372831f8A85936a7834F9D587d971ff"; // Replace with deployed contract

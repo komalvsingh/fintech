@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { BrowserProvider, Contract } from "ethers";
-import CreditScoreABI from "../../artifacts/contracts/CreditScore.sol/CreditScore.json";
-import LoanContractABI from "../../artifacts/contracts/LoanContract.sol/LoanContract.json";
-import DAOContractABI from "../../artifacts/contracts/DAOContract.sol/DAOContract.json";
+import CreditScoreABI from "../lib/CreditScore.json";
+import LoanContractABI from "../lib/LoanContract.json";
+import DAOContractABI from "../lib/DAOContract.json";
 
 const useBlockchainData = (contractAddress, method) => {
   const [data, setData] = useState(null);

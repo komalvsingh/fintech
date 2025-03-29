@@ -16,8 +16,8 @@ const LoanForm = ({ contractAddress }) => {
       if (typeof window !== "undefined") {
         try {
           const ethersModule = await import("ethers");
-          setEthersLib(ethersModule?.ethers || ethersModule); // Handle different export formats
-          console.log("Ethers library loaded:", ethersModule);
+          setEthersLib(ethersModule);
+          console.log("Ethers v6 library loaded:", ethersModule);
         } catch (error) {
           console.error("Failed to load ethers:", error);
         }
@@ -51,13 +51,6 @@ const LoanForm = ({ contractAddress }) => {
     }
 
     try {
-      // Check if ethers.utils is available
-      if (!ethersLib.utils || !ethersLib.utils.parseEther) {
-        console.error("Ethers library is not properly loaded. Object:", ethersLib);
-        alert("Error: Ethers library is not available. Try reloading the page.");
-        return;
-      }
-
       // Validate inputs before sending transaction
       if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
         alert("Please enter a valid amount.");
@@ -69,11 +62,15 @@ const LoanForm = ({ contractAddress }) => {
         return;
       }
 
-      // Create contract instance
-      const contract = new ethersLib.Contract(contractAddress, LoanABI.abi, signer);
+      // Create contract instance - ethers v6 syntax
+      const contract = new ethersLib.Contract(
+        contractAddress, 
+        LoanABI.abi, 
+        signer
+      );
 
-      // Convert amount to Wei
-      const amountInWei = ethersLib.utils.parseEther(amount.toString());
+      // Convert amount to Wei - ethers v6 uses parseUnits instead of parseEther
+      const amountInWei = ethersLib.parseEther(amount.toString());
       const durationInDays = parseInt(duration);
 
       // Send transaction

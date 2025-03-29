@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import * as ethers from "ethers";
+import { BrowserProvider, Contract } from "ethers";
 import CreditScoreABI from "../../artifacts/contracts/CreditScore.sol/CreditScore.json";
 import LoanContractABI from "../../artifacts/contracts/LoanContract.sol/LoanContract.json";
 import DAOContractABI from "../../artifacts/contracts/DAOContract.sol/DAOContract.json";
@@ -33,9 +33,9 @@ const useBlockchainData = (contractAddress, method) => {
         // Request account access if needed
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         
-        // Create provider and signer
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const signer = provider.getSigner();
+        // Create provider and signer - updated for ethers v6
+        const provider = new BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
 
         // Select correct ABI based on method
         let contractABI;
@@ -49,10 +49,10 @@ const useBlockchainData = (contractAddress, method) => {
           throw new Error("Invalid method name");
         }
 
-        // Create contract instance and call method
-        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        // Create contract instance and call method - updated for ethers v6
+        const contract = new Contract(contractAddress, contractABI, signer);
         
-        // Get user address
+        // Get user address - updated for ethers v6
         const userAddress = await signer.getAddress();
         
         // Call contract method - handle different parameter requirements

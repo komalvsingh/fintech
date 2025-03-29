@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import * as ethers from "ethers";
+import { BrowserProvider } from "ethers";
 
 const useWeb3Auth = () => {
   const [account, setAccount] = useState(null);
@@ -8,7 +8,7 @@ const useWeb3Auth = () => {
   const connectWallet = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
+        const provider = new BrowserProvider(window.ethereum);
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         const signer = await provider.getSigner();
         const address = await signer.getAddress();

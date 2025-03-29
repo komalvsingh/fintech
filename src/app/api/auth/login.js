@@ -1,29 +1,40 @@
-import { ethers } from "ethers";
+// src/app/api/auth/login.js
+import { ethers } from 'ethers';
 
 export default async function handler(req, res) {
-    if (req.method === "POST") {
-        try {
-            const { walletAddress, signature, message } = req.body;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-            if (!walletAddress || !signature || !message) {
-                return res.status(400).json({ error: "Missing parameters" });
-            }
+  try {
+    const { signature, message, address } = req.body;
 
-            // Verify the signed message
-            const recoveredAddress = ethers.utils.verifyMessage(message, signature);
-            
-            if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-                return res.status(401).json({ error: "Signature verification failed" });
-            }
-
-            // Simulate token generation (replace with JWT or session handling)
-            const token = `session-${walletAddress}-${Date.now()}`;
-
-            res.status(200).json({ success: true, token, walletAddress });
-        } catch (error) {
-            res.status(500).json({ error: "Authentication failed", details: error.message });
-        }
-    } else {
-        res.status(405).json({ error: "Method Not Allowed" });
+    if (!signature || !message || !address) {
+      return res.status(400).json({ error: 'Missing required parameters' });
     }
+
+    // Verify signature
+    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+
+    if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    // Generate a JWT token or session
+    // This is a simplified example - in a real app, you'd use a proper JWT library
+    const token = Buffer.from(JSON.stringify({ 
+      address, 
+      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
+    })).toString('base64');
+
+    return res.status(200).json({ 
+      token,
+      user: {
+        address
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Authentication failed' });
+  }
 }

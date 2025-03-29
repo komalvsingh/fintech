@@ -1,121 +1,135 @@
-"use client"; // Ensures it runs on the client side in Next.js
+import React, { useState } from 'react';
+import { ethers } from 'ethers';
+import useBlockchainData from '../hooks/useBlockchainData';
+import { storeLoanApplication } from '../utils/ipfs';
 
-import React, { useState, useEffect } from "react";
-import LoanABI from "../lib/LoanContract.json";
-import useWeb3Auth from "../hooks/useWeb3Auth";
+const LoanForm = ({ onSuccess }) => {
+  const [amount, setAmount] = useState('');
+  const [duration, setDuration] = useState(30); // 30 days default
+  const [purpose, setPurpose] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { requestLoan, account } = useBlockchainData();
 
-const LoanForm = ({ contractAddress }) => {
-  const [amount, setAmount] = useState("");
-  const [duration, setDuration] = useState("");
-  const [ethersLib, setEthersLib] = useState(null);
-  const { signer } = useWeb3Auth(); // Hook to get the connected wallet signer
-
-  // Dynamically load ethers library on client-side only
-  useEffect(() => {
-    const loadEthers = async () => {
-      if (typeof window !== "undefined") {
-        try {
-          const ethersModule = await import("ethers");
-          setEthersLib(ethersModule);
-          console.log("Ethers v6 library loaded:", ethersModule);
-        } catch (error) {
-          console.error("Failed to load ethers:", error);
-        }
-      }
-    };
-
-    loadEthers();
-  }, []);
-
-  // Check if MetaMask is installed
-  useEffect(() => {
-    if (typeof window !== "undefined" && !window.ethereum) {
-      console.warn("MetaMask is required to use this feature.");
-    }
-  }, []);
-
-  const requestLoan = async () => {
-    if (!ethersLib) {
-      alert("Blockchain library is still loading. Please try again in a moment.");
-      return;
-    }
-
-    if (!signer) {
-      alert("Please connect your wallet first!");
-      return;
-    }
-
-    if (!contractAddress) {
-      alert("Contract address is not configured!");
-      return;
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      // Validate inputs before sending transaction
-      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-        alert("Please enter a valid amount.");
-        return;
+      // Validate inputs
+      if (!amount || parseFloat(amount) <= 0) {
+        throw new Error('Please enter a valid loan amount');
       }
 
-      if (!duration || isNaN(parseInt(duration)) || parseInt(duration) <= 0) {
-        alert("Please enter a valid duration in days.");
-        return;
+      if (!duration || duration < 1) {
+        throw new Error('Please enter a valid loan duration');
       }
 
-      // Create contract instance - ethers v6 syntax
-      const contract = new ethersLib.Contract(
-        contractAddress, 
-        LoanABI.abi, 
-        signer
-      );
+      // Convert amount to Wei
+      const amountInWei = ethers.utils.parseEther(amount);
+      
+      // Convert duration to seconds (frontend uses days for user-friendliness)
+      const durationInSeconds = duration * 24 * 60 * 60;
 
-      // Convert amount to Wei - ethers v6 uses parseUnits instead of parseEther
-      const amountInWei = ethersLib.parseEther(amount.toString());
-      const durationInDays = parseInt(duration);
+      // Store additional loan metadata on IPFS
+      const ipfsHash = await storeLoanApplication({
+        borrower: account,
+        amount,
+        duration,
+        purpose,
+        requestDate: new Date().toISOString()
+      });
 
-      // Send transaction
-      const tx = await contract.requestLoan(amountInWei, durationInDays);
+      console.log(`Loan application metadata stored on IPFS: ${ipfsHash}`);
 
-      alert("Transaction submitted! Waiting for confirmation...");
-      await tx.wait(); // Wait for transaction confirmation
+      // Submit the loan request to the blockchain
+      await requestLoan(amountInWei, durationInSeconds);
 
-      alert("Loan Requested Successfully!");
+      // Clear form
+      setAmount('');
+      setDuration(30);
+      setPurpose('');
 
-      // Reset form
-      setAmount("");
-      setDuration("");
-    } catch (error) {
-      console.error("Loan request failed:", error);
-      alert(`Error: ${error.message || "Unknown error occurred"}`);
+      // Notify parent component of success
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (err) {
+      console.error("Error requesting loan:", err);
+      setError(err.message || "Failed to request loan. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-4 border rounded">
-      <h3 className="mb-4 font-medium">Request a Loan</h3>
-      <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
-        <input
-          type="text"
-          placeholder="Amount (ETH)"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="p-2 border rounded"
-        />
-        <input
-          type="text"
-          placeholder="Duration (days)"
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          className="p-2 border rounded"
-        />
-        <button
-          onClick={requestLoan}
-          disabled={!ethersLib || !signer}
-          className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
-        >
-          Apply for Loan
-        </button>
-      </div>
+    <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+      <h2 className="text-2xl font-semibold mb-6">Request a Loan</h2>
+      
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
+          <p>{error}</p>
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="amount">
+            Loan Amount (ETH)
+          </label>
+          <input
+            id="amount"
+            type="number"
+            step="0.01"
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            required
+            disabled={loading}
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="duration">
+            Loan Duration (Days)
+          </label>
+          <input
+            id="duration"
+            type="number"
+            min="1"
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            value={duration}
+            onChange={(e) => setDuration(parseInt(e.target.value))}
+            required
+            disabled={loading}
+          />
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="purpose">
+            Loan Purpose
+          </label>
+          <textarea
+            id="purpose"
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+            rows="3"
+            disabled={loading}
+          ></textarea>
+        </div>
+        
+        <div className="flex items-center justify-center">
+          <button
+            type="submit"
+            className={`bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={loading}
+          >
+            {loading ? 'Processing...' : 'Submit Loan Request'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

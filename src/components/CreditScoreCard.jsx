@@ -1,53 +1,105 @@
-import React from "react";
-import useBlockchainData from "../hooks/useBlockchainData";
-import RequestCreditScore from "./RequestCreditScore";
+import React, { useState, useEffect } from 'react';
+import useBlockchainData from '../hooks/useBlockchainData';
 
-const CreditScoreCard = ({ contractAddress }) => {
-  const result = useBlockchainData(contractAddress, "getCreditScore");
-  
-  // Enhanced error detection for ethers.js error structure
-  const hasNoCreditScore = result.error && (
-    (typeof result.error === 'string' && result.error.includes("User does not have a credit score")) ||
-    (result.error?.reason && result.error.reason.includes("User does not have a credit score")) ||
-    (result.error?.revert?.args && result.error.revert.args[0] === "User does not have a credit score") ||
-    (result.error?.data && result.error.data.includes("User does not have a credit score")) ||
-    (result.error?.message && result.error.message.includes("User does not have a credit score")) ||
-    (result.error?.code === "CALL_EXCEPTION" && JSON.stringify(result.error).includes("User does not have a credit score"))
-  );
-  
-  // Log the error structure to help debug
-  React.useEffect(() => {
-    if (result.error && !hasNoCreditScore) {
-      console.log("Credit Score Error Structure:", result.error);
+const CreditScoreCard = ({ address }) => {
+  const [score, setScore] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { getCreditScore, initializeCreditScore } = useBlockchainData();
+
+  useEffect(() => {
+    const fetchScore = async () => {
+      try {
+        const creditScore = await getCreditScore(address);
+        setScore(creditScore);
+      } catch (error) {
+        console.error("Error fetching credit score:", error);
+        setError("No credit score found. You may need to initialize it.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (address) {
+      fetchScore();
     }
-  }, [result.error, hasNoCreditScore]);
-  
+  }, [address, getCreditScore]);
+
+  const handleInitializeScore = async () => {
+    try {
+      setLoading(true);
+      const newScore = await initializeCreditScore();
+      setScore(newScore);
+      setError(null);
+    } catch (err) {
+      setError("Failed to initialize credit score. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Determine score level for styling
+  const getScoreLevel = (score) => {
+    if (score >= 750) return 'excellent';
+    if (score >= 650) return 'good';
+    if (score >= 550) return 'fair';
+    return 'poor';
+  };
+
+  const getScoreColor = (level) => {
+    switch(level) {
+      case 'excellent': return 'bg-green-500';
+      case 'good': return 'bg-blue-500';
+      case 'fair': return 'bg-yellow-500';
+      case 'poor': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+        <div className="h-24 bg-gray-200 rounded-full w-24 mx-auto"></div>
+        <div className="h-8 bg-gray-200 rounded mt-4"></div>
+        <div className="h-4 bg-gray-200 rounded mt-4 w-3/4 mx-auto"></div>
+      </div>
+    );
+  }
+
+  if (error && !score) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+        <div className="text-center mb-4">
+          <div className="text-red-500 text-xl font-semibold">{error}</div>
+        </div>
+        <button
+          onClick={handleInitializeScore}
+          className="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-200"
+        >
+          Initialize Credit Score
+        </button>
+      </div>
+    );
+  }
+
+  const scoreLevel = score ? getScoreLevel(score) : 'unknown';
+  const scoreColor = getScoreColor(scoreLevel);
+
   return (
-    <div className="bg-white p-4 rounded shadow">
-      {result.loading && <p>Loading...</p>}
-      
-      {hasNoCreditScore ? (
-        <div>
-          <h3 className="text-xl font-semibold mb-2">Credit Score Not Available</h3>
-          <p className="text-md mb-3">You don't have a credit score yet. Request a credit score assessment to establish your credit history.</p>
-          <RequestCreditScore 
-            contractAddress={contractAddress} 
-            onSuccess={() => window.location.reload()} 
-          />
+    <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+      <div className="text-center mb-4">
+        <div className={`${scoreColor} text-white text-4xl font-bold rounded-full w-24 h-24 flex items-center justify-center mx-auto`}>
+          {score}
         </div>
-      ) : result.error ? (
-        <div className="text-red-500">
-          <p className="font-semibold">Error retrieving credit score:</p>
-          <p>{typeof result.error === 'string' 
-            ? result.error 
-            : result.error?.reason || result.error?.message || 'Failed to fetch credit score'}</p>
-        </div>
-      ) : !result.loading && (
-        <div>
-          <h3 className="text-xl font-semibold mb-2">Your Credit Score</h3>
-          <p className="text-3xl font-bold">{result.data?.toString() || "No data"}</p>
-        </div>
-      )}
+        <h2 className="text-2xl font-semibold mt-4 capitalize">{scoreLevel} Credit</h2>
+        <p className="text-gray-600 mt-2">
+          {scoreLevel === 'excellent' && 'You have exceptional credit. Most lenders will offer you their best rates.'}
+          {scoreLevel === 'good' && 'You have good credit. Most lenders will approve your applications.'}
+          {scoreLevel === 'fair' && 'You have fair credit. You may qualify for most loans but not at the best rates.'}
+          {scoreLevel === 'poor' && 'You have poor credit. You may have difficulty getting approved for loans.'}
+        </p>
+      </div>
     </div>
   );
 };

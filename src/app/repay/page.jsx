@@ -96,101 +96,108 @@ const RepaymentPage = () => {
         signer
       );
       
-      // Try different approaches to fetch loans
-      let loanIds = [];
+      // Use the getUserLoans function from the contract
+      const loanIds = await contract.getUserLoans(account);
+      console.log("User loan IDs from getUserLoans:", loanIds);
       
-      try {
-        // First approach: Use getUserLoans function
-        const rawLoanIds = await contract.getUserLoans(account);
-        loanIds = [...rawLoanIds];
-        console.log("User loan IDs from getUserLoans:", loanIds);
-      } catch (err) {
-        console.warn("getUserLoans failed:", err.message);
-        
-        try {
-          // Second approach: Try to get loans count first
-          const loansCount = await contract.getUserLoansCount(account);
-          console.log("User loans count:", loansCount);
-          
-          // Then fetch each loan ID
-          for (let i = 0; i < loansCount; i++) {
-            const loanId = await contract.userLoans(account, i);
-            loanIds.push(loanId);
-          }
-          console.log("User loan IDs from userLoans mapping:", loanIds);
-        } catch (err2) {
-          console.warn("getUserLoansCount/userLoans approach failed:", err2.message);
-          
-          // Third approach: Try to get all loans and filter
-          try {
-            const allLoansCount = await contract.getLoansCount();
-            console.log("Total loans count:", allLoansCount);
-            
-            for (let i = 0; i < allLoansCount; i++) {
-              try {
-                const loanId = await contract.allLoans(i);
-                const loan = await contract.loans(loanId);
-                
-                if (loan.borrower.toLowerCase() === account.toLowerCase()) {
-                  loanIds.push(loanId);
-                }
-              } catch (err3) {
-                console.log(`Error checking loan at index ${i}:`, err3.message);
-              }
-            }
-            console.log("User loan IDs from scanning all loans:", loanIds);
-          } catch (err3) {
-            console.warn("All loans scanning approach failed:", err3.message);
-          }
-        }
-      }
+      const formattedLoans = [];
       
-      // If we still don't have loan IDs, try a direct approach
-      if (loanIds.length === 0) {
-        console.log("No loan IDs found, trying direct loan fetching...");
-        
-        // Try to directly fetch loans by generating potential IDs
-        // This is a fallback approach that might work depending on how your contract generates loan IDs
-        const formattedLoans = [];
-        
-        // Try to fetch recent loans (last 10 blocks)
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const currentBlock = await provider.getBlockNumber();
-        
-        // Look for loan events in recent blocks
+      // Process each loan ID
+      for (let i = 0; i < loanIds.length; i++) {
         try {
-          const loanRequestedFilter = contract.filters.LoanRequested(account);
-          const loanEvents = await contract.queryFilter(loanRequestedFilter, currentBlock - 5000, currentBlock);
+          const loanId = loanIds[i];
+          const loan = await contract.loans(loanId);
           
-          console.log("Found loan events:", loanEvents);
-          
-          for (const event of loanEvents) {
-            try {
-              const loanId = event.args.loanId;
-              loanIds.push(loanId);
-            } catch (err) {
-              console.log("Error processing loan event:", err);
-            }
+          // Verify this loan belongs to the current user
+          if (loan.borrower.toLowerCase() === account.toLowerCase() && loan.amount > 0n) {
+            formattedLoans.push({
+              id: loanId,
+              borrower: loan.borrower,
+              amount: ethers.formatEther(loan.amount),
+              rawAmount: loan.amount,
+              repaymentDue: new Date(Number(loan.repaymentDue) * 1000).toLocaleDateString(),
+              isApproved: loan.isApproved,
+              isPaid: loan.isPaid
+            });
           }
-          
-          console.log("Loan IDs from events:", loanIds);
         } catch (err) {
-          console.warn("Event filtering failed:", err.message);
+          console.log(`Error fetching loan details for ID ${loanIds[i]}:`, err.message);
         }
       }
       
-      // Process the loan IDs we found
-      if (loanIds.length > 0) {
-        const formattedLoans = [];
-        
-        // Process each loan ID
-        for (let i = 0; i < loanIds.length; i++) {
-          try {
-            const loanId = loanIds[i];
+      console.log("Formatted loans before filtering:", formattedLoans);
+      
+      // Filter for approved, unpaid loans
+      const activeLoans = formattedLoans.filter(loan => 
+        loan.isApproved && !loan.isPaid
+      );
+      
+      console.log("Active loans after filtering:", activeLoans);
+      setLoans(activeLoans);
+      
+      if (activeLoans.length === 0) {
+        console.log("No active loans found for this account");
+      }
+      
+    } catch (err) {
+      console.error("Error fetching loans:", err);
+      setError("Failed to fetch loans: " + (err.message || "Unknown error"));
+      
+      // Try direct loan lookup through events as fallback
+      try {
+        await fetchLoansThroughEvents();
+      } catch (eventErr) {
+        console.error("Fallback fetch also failed:", eventErr);
+      }
+    } finally {
+      setLoadingLoans(false);
+    }
+  };
+  
+  const fetchLoansThroughEvents = async () => {
+    if (!signer || !account) return;
+    
+    console.log("Trying fallback method to fetch loans through events...");
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(
+        contractAddress,
+        LoanContractABI.abi,
+        provider
+      );
+      
+      // Look for loan events in recent blocks (last 5000 blocks)
+      const currentBlock = await provider.getBlockNumber();
+      const formattedLoans = [];
+      
+      // Define loan events to look for - assuming there might be a LoanRequested event
+      // This is speculative and depends on your actual contract events
+      const fromBlock = Math.max(0, currentBlock - 5000);
+      const toBlock = 'latest';
+      
+      // Get all past events and filter manually
+      const events = await provider.getLogs({
+        address: contractAddress,
+        fromBlock,
+        toBlock
+      });
+      
+      console.log("Found events:", events);
+      
+      // For each event, check if it's related to a loan for this user
+      for (const event of events) {
+        try {
+          // Check all loans to find this user's loans
+          const loanId = event.topics[1]; // This is speculative
+          if (loanId) {
             const loan = await contract.loans(loanId);
             
-            // Verify this loan belongs to the current user
-            if (loan.borrower.toLowerCase() === account.toLowerCase() && loan.amount > 0n) {
+            if (loan.borrower.toLowerCase() === account.toLowerCase() && 
+                loan.amount > 0n && 
+                loan.isApproved && 
+                !loan.isPaid) {
+              
               formattedLoans.push({
                 id: loanId,
                 borrower: loan.borrower,
@@ -201,29 +208,20 @@ const RepaymentPage = () => {
                 isPaid: loan.isPaid
               });
             }
-          } catch (err) {
-            console.log(`Error fetching loan details for ID ${loanIds[i]}:`, err.message);
           }
+        } catch (err) {
+          console.log("Error processing event:", err);
         }
-        
-        console.log("Formatted loans before filtering:", formattedLoans);
-        
-        // Filter for approved, unpaid loans
-        const activeLoans = formattedLoans.filter(loan => 
-          loan.isApproved && !loan.isPaid
-        );
-        
-        console.log("Active loans after filtering:", activeLoans);
-        setLoans(activeLoans);
-      } else {
-        console.log("No loans found for this account");
-        setLoans([]);
       }
+      
+      console.log("Loans found through events:", formattedLoans);
+      if (formattedLoans.length > 0) {
+        setLoans(formattedLoans);
+      }
+      
     } catch (err) {
-      console.error("Error fetching loans:", err);
-      setError("Failed to fetch loans: " + (err.message || "Unknown error"));
-    } finally {
-      setLoadingLoans(false);
+      console.error("Error in event-based loan fetching:", err);
+      throw err;
     }
   };
 
@@ -243,7 +241,8 @@ const RepaymentPage = () => {
       
       console.log("Repaying loan:", loanId, "Amount:", amount.toString());
       
-      // Call repayLoan function with the exact amount
+      // Call repayLoan function with the loan ID and exact amount as value
+      // Matching the contract's function signature: function repayLoan(uint256 loanId) external payable
       const tx = await contract.repayLoan(loanId, {
         value: amount
       });

@@ -3,7 +3,7 @@ import React from "react";
 import CreditScoreCard from "../../components/CreditScoreCard";
 
 const CreditScorePage = () => {
-  const contractAddress = "0x78522f1F905Ad6f0b679F064a79D48eBf24a57d4"; // Replace with deployed contract
+  const contractAddress = "0x85b27c7631B8985001c8a5E3F18f3f9841A75e4E"; // Replace with deployed contract
 
   return (
     <div className="p-6">

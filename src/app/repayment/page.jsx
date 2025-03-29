@@ -3,7 +3,7 @@ import React from "react";
 import RepaymentStatus from "../../components/RepaymentStatus";
 
 const RepaymentPage = () => {
-  const contractAddress = "0x9549E4495372831f8A85936a7834F9D587d971ff"; // Replace with deployed contract
+  const contractAddress = "0x860B55A2018d591378ceF13A4624fcc67373A3a1"; // Replace with deployed contract
 
   return (
     <div className="p-6">

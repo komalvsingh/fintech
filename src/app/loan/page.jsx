@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 const LoanPage = () => {
   // Existing state variables
-  const contractAddress = "0x860B55A2018d591378ceF13A4624fcc67373A3a1";
+  const contractAddress = "0x463942083D67Fe0fF490D6Bd1F4c6e671c0C309a";
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
   const [isConnected, setIsConnected] = useState(false);

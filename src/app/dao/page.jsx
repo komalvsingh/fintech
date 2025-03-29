@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 import DAOContractABI from "../../lib/DAOContract.json";
 
 const DAOPage = () => {
-  const contractAddress = "0x860B55A2018d591378ceF13A4624fcc67373A3a1"; // Replace with your deployed DAO contract address
+  const contractAddress = "0x3BfC9C9A6BA115223283ffA1a1CdE90a9D6e187b"; // Replace with your deployed DAO contract address
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
   const [isConnected, setIsConnected] = useState(false);

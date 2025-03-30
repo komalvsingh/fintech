@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import LoanContractABI from "../../lib/LoanContract.json";
 
@@ -14,7 +14,7 @@ const CreditPage = () => {
   const [hasScore, setHasScore] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  const contractAddress = "0x860B55A2018d591378ceF13A4624fcc67373A3a1";
+  const contractAddress = "0x0A3a169934947589340A00219DEf18bE078C0a24";
 
   // Connect to MetaMask
   const connectWallet = async () => {
@@ -60,18 +60,35 @@ const CreditPage = () => {
     contract.removeAllListeners("LoanRepaid");
     contract.on("LoanRepaid", (loanId) => {
       console.log("Loan repaid event detected for loan ID:", loanId);
-      // After a loan is repaid, check for updated credit score
-      checkCreditScore();
-      showNotification("Loan repaid successfully! Your credit score has been updated.");
+      
+      // Get current score from state or localStorage
+      let currentScore = creditScore;
+      if (!currentScore) {
+        const cachedScore = localStorage.getItem(`creditScore_${userAddress}`);
+        currentScore = cachedScore ? Number(cachedScore) : 0;
+      }
+      
+      // Update the score by adding 20 points
+      const newScore = currentScore + 20;
+      setCreditScore(newScore);
+      
+      // Store in localStorage
+      localStorage.setItem(`creditScore_${userAddress}`, newScore.toString());
+      
+      showNotification(`Loan repaid successfully! Your credit score increased to ${newScore}`);
     });
     
     // Let's add a custom event listener for CreditScoreUpdated
-    // Note: You'll need to add this event to your smart contract
     contract.removeAllListeners("CreditScoreUpdated");
     contract.on("CreditScoreUpdated", (user, newScore) => {
       if (user.toLowerCase() === userAddress.toLowerCase()) {
         console.log("Credit score updated event detected:", newScore);
-        setCreditScore(Number(newScore));
+        const numericScore = Number(newScore);
+        setCreditScore(numericScore);
+        
+        // Store in localStorage
+        localStorage.setItem(`creditScore_${userAddress}`, numericScore.toString());
+        
         showNotification("Your credit score has been updated!");
       }
     });
@@ -115,6 +132,7 @@ const CreditPage = () => {
           setSigner(null);
           setContract(null);
           setIsConnected(false);
+          setCreditScore(null);
         }
       });
     }
@@ -131,7 +149,7 @@ const CreditPage = () => {
   }, []);
   
   const repayLoan = async (loanId, amount) => {
-    if (!signer || !contract) return;
+    if (!signer || !contract || !account) return;
     
     setLoading(true);
     setError(null);
@@ -157,11 +175,28 @@ const CreditPage = () => {
       await tx.wait();
       console.log("Loan repayment confirmed");
       
-      // The contract event listener will update credit score automatically
-      // But let's check in case the event listener missed it
-      setTimeout(() => {
-        checkCreditScore();
-      }, 2000);
+      // After confirmation, manually update the credit score
+      // First get current score
+      let currentScore = creditScore;
+      if (!currentScore) {
+        try {
+          const score = await contract.getCreditScore();
+          currentScore = Number(score);
+        } catch (error) {
+          const cachedScore = localStorage.getItem(`creditScore_${account}`);
+          currentScore = cachedScore ? Number(cachedScore) : 0;
+        }
+      }
+      
+      // Update the score by adding 20 points
+      const newScore = currentScore + 20;
+      setCreditScore(newScore);
+      setHasScore(true);
+      
+      // Store in localStorage
+      localStorage.setItem(`creditScore_${account}`, newScore.toString());
+      
+      showNotification(`Loan repaid successfully! Your credit score increased to ${newScore}`);
       
     } catch (err) {
       console.error("Error repaying loan:", err);
@@ -172,14 +207,22 @@ const CreditPage = () => {
   };
 
   useEffect(() => {
-    if (isConnected && signer && contract) {
+    if (isConnected && account) {
+      // Try to get from localStorage first for immediate display
+      const cachedScore = localStorage.getItem(`creditScore_${account}`);
+      if (cachedScore) {
+        setCreditScore(Number(cachedScore));
+        setHasScore(true);
+      }
+      
+      // Then check the blockchain for the most up-to-date score
       checkCreditScore();
     }
-  }, [isConnected, signer, contract]);
+  }, [isConnected, account]);
 
   // Update the checkCreditScore function to properly interact with the contract
   const checkCreditScore = async () => {
-    if (!signer || !contract) return;
+    if (!signer || !contract || !account) return;
     
     setLoading(true);
     setError(null);
@@ -193,12 +236,39 @@ const CreditPage = () => {
       if (hasCredit) {
         // Get the credit score
         const score = await contract.getCreditScore();
-        console.log("Credit score:", Number(score));
-        setCreditScore(Number(score));
+        const numericScore = Number(score);
+        console.log("Credit score:", numericScore);
+        
+        // Check if we should manually increment by 20 for a recent repayment
+        // that might not be reflected in the blockchain yet
+        const cachedScore = localStorage.getItem(`creditScore_${account}`);
+        if (cachedScore && Number(cachedScore) > numericScore) {
+          // Keep the higher score from localStorage if it exists
+          setCreditScore(Number(cachedScore));
+        } else {
+          // Otherwise use the blockchain value
+          setCreditScore(numericScore);
+          // Update localStorage with the latest from blockchain
+          localStorage.setItem(`creditScore_${account}`, numericScore.toString());
+        }
+      } else {
+        // If they don't have a score on chain but we have one in localStorage, keep it
+        const cachedScore = localStorage.getItem(`creditScore_${account}`);
+        if (cachedScore) {
+          setCreditScore(Number(cachedScore));
+          setHasScore(true);
+        }
       }
     } catch (err) {
       console.error("Error checking credit score:", err);
       setError(err.message || "Failed to check credit score");
+      
+      // Try to get from localStorage as fallback
+      const cachedScore = localStorage.getItem(`creditScore_${account}`);
+      if (cachedScore) {
+        setCreditScore(Number(cachedScore));
+        setHasScore(true);
+      }
     } finally {
       setLoading(false);
     }

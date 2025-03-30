@@ -267,95 +267,172 @@ const RepaymentPage = () => {
     }
   };
 
+  // Truncate address for display
+  const truncateAddress = (address) => {
+    if (!address) return "";
+    return address.slice(0, 6) + "..." + address.slice(-4);
+  };
+
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Repay Your Loans</h2>
-      
-      {!isConnected ? (
-        <div className="bg-white p-6 rounded-xl shadow-md">
-          <p className="text-gray-600 mb-4">Please connect your wallet to view and repay your loans.</p>
-          <button
-            onClick={connectWallet}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium w-full"
-          >
-            Connect Wallet
-          </button>
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-10">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-teal-400">
+            Repay Your Loans
+          </h2>
+          
+          {isConnected && (
+            <div className="bg-gray-800 py-2 px-4 rounded-full text-sm">
+              {truncateAddress(account)}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="bg-white p-6 rounded-xl shadow-md">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              <p>{error}</p>
-            </div>
-          )}
-          
-          {success && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-              <p>Loan repaid successfully! Your credit score has been updated.</p>
-            </div>
-          )}
-          
-          <h3 className="text-lg font-semibold mb-4">Your Active Loans</h3>
-          
-          {loadingLoans ? (
-            <div className="flex justify-center items-center h-40">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading your loans...</p>
+        
+        {!isConnected ? (
+          <div className="bg-gray-800 p-8 rounded-xl shadow-xl border border-gray-700">
+            <div className="text-center">
+              <div className="mx-auto w-24 h-24 mb-6 flex items-center justify-center rounded-full bg-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
               </div>
+              <h3 className="text-xl font-semibold mb-4">Wallet Connection Required</h3>
+              <p className="text-gray-400 mb-6">
+                Connect your Ethereum wallet to view your active loans and manage your repayments.
+              </p>
+              <button
+                onClick={connectWallet}
+                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-medium py-3 px-6 rounded-lg w-full transition-all duration-200 shadow-lg hover:shadow-cyan-500/25"
+              >
+                Connect Wallet
+              </button>
             </div>
-          ) : loans.length > 0 ? (
-            <div className="space-y-4">
-              {loans.map((loan, index) => (
-                <div key={index} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">Loan #{index + 1}</span>
-                    <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
-                      Active
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-4">
-                    <div>
-                      <p className="text-gray-500">Amount</p>
-                      <p className="font-semibold">{loan.amount} ETH</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Due Date</p>
-                      <p>{loan.repaymentDue}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-gray-500">Loan ID</p>
-                      <p className="text-xs truncate">{loan.id}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRepay(loan.id, loan.rawAmount)}
-                    disabled={repaying}
-                    className={`${
-                      repaying ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'
-                    } text-white px-4 py-2 rounded-md text-sm font-medium w-full`}
-                  >
-                    {repaying ? 'Processing...' : `Repay ${loan.amount} ETH`}
-                  </button>
+          </div>
+        ) : (
+          <div className="bg-gray-800 p-8 rounded-xl shadow-xl border border-gray-700">
+            {error && (
+              <div className="bg-red-900/50 border border-red-800 text-red-100 px-4 py-3 rounded-lg mb-6">
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <p>{error}</p>
                 </div>
-              ))}
+              </div>
+            )}
+            
+            {success && (
+              <div className="bg-teal-900/50 border border-teal-800 text-teal-100 px-4 py-3 rounded-lg mb-6">
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p>Loan repaid successfully! Your credit score has been updated.</p>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-cyan-400">Your Active Loans</h3>
+              <button
+                onClick={fetchLoans}
+                disabled={loadingLoans}
+                className="bg-gray-700 hover:bg-gray-600 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 mr-2 ${loadingLoans ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loadingLoans ? 'Refreshing...' : 'Refresh'}
+              </button>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-40">
-              <p className="text-gray-600 mb-2">You don't have any active loans to repay.</p>
-              <p className="text-sm text-gray-500">Apply for a loan on the Loans page.</p>
-            </div>
-          )}
-          
-          <button
-            onClick={fetchLoans}
-            disabled={loadingLoans}
-            className="mt-4 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md text-sm font-medium w-full"
-          >
-            {loadingLoans ? 'Refreshing...' : 'Refresh Loans'}
-          </button>
-        </div>
-      )}
+            
+            {loadingLoans ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading your loans...</p>
+                </div>
+              </div>
+            ) : loans.length > 0 ? (
+              <div className="grid gap-6 md:grid-cols-2">
+                {loans.map((loan, index) => (
+                  <div key={index} className="border border-gray-700 bg-gray-800/50 rounded-xl p-6 hover:bg-gray-750 transition-colors backdrop-blur-sm shadow-lg hover:shadow-cyan-500/10">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 flex items-center justify-center mr-3">
+                          <span className="font-bold">{index + 1}</span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Loan #{index + 1}</h4>
+                          <p className="text-xs text-gray-400 truncate w-32">{loan.id}</p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-cyan-900/50 text-cyan-300 border border-cyan-800">
+                        Active
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-3 mb-6">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Amount Due</span>
+                        <span className="font-semibold text-white">{loan.amount} ETH</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Due Date</span>
+                        <span className="text-white">{loan.repaymentDue}</span>
+                      </div>
+                      
+                      {/* Progress bar for time remaining - just UI, not functional */}
+                      <div className="pt-2">
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-gradient-to-r from-cyan-500 to-teal-500 h-2 rounded-full" style={{ width: "65%" }}></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleRepay(loan.id, loan.rawAmount)}
+                      disabled={repaying}
+                      className={`
+                        ${repaying ? 'bg-teal-700' : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600'}
+                        text-white px-4 py-3 rounded-lg text-sm font-medium w-full transition-all duration-200
+                        flex items-center justify-center shadow-lg hover:shadow-cyan-500/25
+                      `}
+                    >
+                      {repaying ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Repay {loan.amount} ETH
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 border border-dashed border-gray-700 rounded-xl">
+                <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <p className="text-gray-300 font-medium mb-2">No Active Loans Found</p>
+                <p className="text-sm text-gray-400 text-center max-w-xs">You don't have any active loans to repay at the moment. Apply for a loan on the Loans page.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import DAOContractABI from "../../lib/DAOContract.json";
+import DaoMembershipInfo from "../../components/DaoMembershipInfo"; // Import the component
 
 const DAOPage = () => {
   const contractAddress = "0x78dAfdDCa52A7DD3d130e7a0f4100b4972A32E8F";
@@ -15,6 +16,8 @@ const DAOPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  // Add state for popup
+  const [showMembershipPopup, setShowMembershipPopup] = useState(false);
 
   // Connect to MetaMask
   const connectWallet = async () => {
@@ -302,7 +305,7 @@ const DAOPage = () => {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-10">
+      <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-9">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">DeFi Credit DAO</h1>
@@ -312,12 +315,20 @@ const DAOPage = () => {
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold mb-4">Welcome to DeFi Credit DAO</h2>
               <p className="text-gray-300 mb-6">Connect your wallet to manage loans, vote on proposals, and participate in decentralized lending.</p>
-              <button
-                onClick={connectWallet}
-                className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
-              >
-                Connect Wallet
-              </button>
+              <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <button
+                  onClick={connectWallet}
+                  className="bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  Connect Wallet
+                </button>
+                <button
+                  onClick={() => setShowMembershipPopup(true)}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg text-lg font-medium transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  Get DAO Membership
+                </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
@@ -338,12 +349,19 @@ const DAOPage = () => {
             </div>
           </div>
         </div>
+        
+        {/* Membership Popup */}
+        {showMembershipPopup && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
+            <DaoMembershipInfo onDismiss={() => setShowMembershipPopup(false)} />
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-10">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">DeFi Credit DAO</h1>
@@ -400,17 +418,28 @@ const DAOPage = () => {
               
               <div className="mt-6 pt-6 border-t border-gray-700">
                 <h4 className="text-lg font-medium mb-4 text-gray-300">Actions</h4>
-                <button
-                  onClick={fetchLoanRequests}
-                  disabled={loading || !isMember}
-                  className={`w-full ${
-                    loading || !isMember
-                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white'
-                  } px-4 py-2 rounded-lg text-sm font-medium transition-colors mb-3`}
-                >
-                  {loading ? 'Loading...' : 'Refresh Loan Data'}
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={fetchLoanRequests}
+                    disabled={loading || !isMember}
+                    className={`w-full ${
+                      loading || !isMember
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white'
+                    } px-4 py-2 rounded-lg text-sm font-medium transition-colors`}
+                  >
+                    {loading ? 'Loading...' : 'Refresh Loan Data'}
+                  </button>
+                  
+                  {!isMember && (
+                    <button
+                      onClick={() => setShowMembershipPopup(true)}
+                      className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Get DAO Membership
+                    </button>
+                  )}
+                </div>
                 
                 {!isMember && (
                   <p className="text-sm text-gray-500 mt-2">
@@ -476,6 +505,12 @@ const DAOPage = () => {
                   </svg>
                   <h3 className="mt-4 text-lg font-medium text-gray-300">Members Only</h3>
                   <p className="mt-2 text-gray-400">You need to be a DAO member to view and vote on loan requests.</p>
+                  <button
+                    onClick={() => setShowMembershipPopup(true)}
+                    className="mt-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Get DAO Membership
+                  </button>
                 </div>
               ) : loading ? (
                 <div className="flex justify-center items-center py-12">
@@ -496,7 +531,7 @@ const DAOPage = () => {
                             {request.approved ? 'Approved' : 'Pending'}
                           </span>
                         </div>
-                        <div className="text-xs text-yellow-400">Votes: {request.votes}</div>
+                        <div className="text-xs text-gray-400">Votes: {request.votes}</div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 mb-4">
@@ -557,6 +592,13 @@ const DAOPage = () => {
           <p className="mt-1">Contract Address: {truncateAddress(contractAddress)}</p>
         </footer>
       </div>
+      
+      {/* Membership Popup */}
+      {showMembershipPopup && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
+          <DaoMembershipInfo onDismiss={() => setShowMembershipPopup(false)} />
+        </div>
+      )}
     </div>
   );
 };

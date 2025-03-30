@@ -26,8 +26,10 @@ const DaoMembershipInfo = ({ onDismiss }) => {
         exclusive tools, and more.
       </p>
       <p className="text-gray-300 mb-6">
-        If you’re interested in a full system demonstration and DAO membership, please contact us.
-      </p>
+  If you’re interested in a full system demonstration and DAO membership, please contact us.  
+  <span className="text-yellow-400 font-semibold"> Also, share your public wallet address.</span>
+</p>
+
       <a 
         href="mailto:getdaomembership@gmail.com" 
         target="_blank" 

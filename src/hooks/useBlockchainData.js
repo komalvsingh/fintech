@@ -1,5 +1,5 @@
 // src/hooks/useBlockchainData.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import CreditScoreABI from '../lib/CreditScore.json';
 import LoanContractABI from '../lib/LoanContract.json';
@@ -15,6 +15,8 @@ export default function useBlockchainData() {
   const [creditScore, setCreditScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [hasScore, setHasScore] = useState(false);
+  const [eventListenersActive, setEventListenersActive] = useState(false);
 
   // Contract addresses - you'd need to replace these with actual deployed addresses
   const CREDIT_SCORE_ADDRESS = process.env.NEXT_PUBLIC_CREDIT_SCORE_ADDRESS;
@@ -54,12 +56,25 @@ export default function useBlockchainData() {
         );
         setLoanContract(loanContract);
         
-        // Fetch credit score if available
+        // Check if user has a credit score first
         try {
-          const score = await loanContract.getCreditScore();
-          setCreditScore(Number(score));
+          const userAddress = await signer.getAddress();
+          const hasCredit = await loanContract.hasCreditScore(userAddress);
+          setHasScore(hasCredit);
+          
+          // Only fetch credit score if user has one
+          if (hasCredit) {
+            const score = await loanContract.getCreditScore();
+            setCreditScore(Number(score));
+          }
+          
+          // Set up event listeners if not already active
+          if (!eventListenersActive) {
+            setupEventListeners(loanContract, userAddress);
+            setEventListenersActive(true);
+          }
         } catch (error) {
-          console.log("Credit score not available yet:", error.message);
+          console.log("Credit score check failed:", error.message);
         }
       }
       
@@ -80,6 +95,48 @@ export default function useBlockchainData() {
     }
   };
 
+  // Set up blockchain event listeners
+  const setupEventListeners = useCallback((contract, userAddress) => {
+    if (!contract || !userAddress) return;
+    
+    // Clean up any existing listeners first
+    contract.removeAllListeners("LoanRepaid");
+    contract.removeAllListeners("CreditScoreUpdated");
+    
+    // Listen for loan repayments
+    contract.on("LoanRepaid", async (loanId) => {
+      console.log("Loan repaid event detected:", loanId);
+      
+      try {
+        // Get the loan details to check if it belongs to this user
+        const loan = await contract.loans(loanId);
+        
+        if (loan.borrower.toLowerCase() === userAddress.toLowerCase()) {
+          console.log("This loan belongs to current user, updating credit score");
+          
+          // Short delay to allow blockchain state to update
+          setTimeout(async () => {
+            // Update credit score
+            const score = await contract.getCreditScore();
+            setCreditScore(Number(score));
+          }, 2000);
+        }
+      } catch (err) {
+        console.error("Error processing loan repaid event:", err);
+      }
+    });
+    
+    // If your contract has a CreditScoreUpdated event, add a listener for it
+    contract.on("CreditScoreUpdated", (user, newScore) => {
+      console.log("Credit score updated event detected:", user, newScore);
+      
+      if (user.toLowerCase() === userAddress.toLowerCase()) {
+        console.log("Credit score updated for current user:", Number(newScore));
+        setCreditScore(Number(newScore));
+      }
+    });
+  }, []);
+
   // Credit score functions
   const initializeCreditScore = async () => {
     try {
@@ -89,6 +146,7 @@ export default function useBlockchainData() {
       await tx.wait();
       const score = await loanContract.getCreditScore();
       setCreditScore(Number(score));
+      setHasScore(true);
       return Number(score);
     } catch (error) {
       console.error("Failed to initialize credit score:", error);
@@ -111,6 +169,25 @@ export default function useBlockchainData() {
     } catch (error) {
       console.error("Failed to get credit score:", error);
       return null;
+    }
+  };
+
+  // New function to update credit score
+  const updateCreditScore = async (address, positiveAction) => {
+    try {
+      if (!creditScoreContract) throw new Error("Credit score contract not initialized");
+      
+      // Call the updateUserCreditScore function from the contract
+      // Note: Assuming you've added a public function in your contract that calls the internal updateCreditScore
+      const tx = await creditScoreContract.updateUserCreditScore(address, positiveAction);
+      await tx.wait();
+      
+      // After updating, get the new credit score
+      const newScore = await getCreditScore(address);
+      return newScore;
+    } catch (error) {
+      console.error("Failed to update credit score:", error);
+      throw error;
     }
   };
 
@@ -174,10 +251,46 @@ export default function useBlockchainData() {
       const tx = await loanContract.repayLoan(loanId, {
         value: value
       });
-      await tx.wait();
+      
+      console.log("Loan repayment transaction sent:", tx.hash);
+      const receipt = await tx.wait();
+      console.log("Loan repayment confirmed:", receipt);
+      
+      // After repayment, refresh the credit score since it should have increased
+      setTimeout(async () => {
+        await getCreditScore();
+      }, 2000); // Small delay to allow blockchain to update
+      
       return true;
     } catch (error) {
       console.error("Failed to repay loan:", error);
+      throw error;
+    }
+  };
+
+  // Add checkLoanRepayment function
+  const checkLoanRepayment = async (loanId) => {
+    try {
+      if (!loanContract) throw new Error("Loan contract not initialized");
+      
+      // Get loan details
+      const loan = await loanContract.loans(loanId);
+      
+      // Check if the loan has been fully repaid
+      const isRepaid = loan.fullyRepaid;
+      const amountRepaid = loan.amountRepaid;
+      const totalAmount = loan.amount;
+      
+      return {
+        loanId,
+        isRepaid,
+        amountRepaid,
+        totalAmount,
+        remainingAmount: totalAmount - amountRepaid,
+        percentRepaid: (amountRepaid * 100n) / totalAmount
+      };
+    } catch (error) {
+      console.error("Failed to check loan repayment:", error);
       throw error;
     }
   };
@@ -288,12 +401,15 @@ export default function useBlockchainData() {
     creditScore,
     loading,
     error,
+    hasScore,
     initializeCreditScore,
     getCreditScore,
+    updateCreditScore,
     requestLoan,
     voteOnLoan,
     disburseLoan,
     repayLoan,
+    checkLoanRepayment,
     getUserLoans,
     getMultipleLoans,
     requestDAOLoan,

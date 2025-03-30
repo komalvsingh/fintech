@@ -6,12 +6,13 @@ import LoanContractABI from "../../lib/LoanContract.json";
 const CreditPage = () => {
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
+  const [contract, setContract] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [creditScore, setCreditScore] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasScore, setHasScore] = useState(false);
-  const [initializing, setInitializing] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const contractAddress = "0x860B55A2018d591378ceF13A4624fcc67373A3a1";
 
@@ -24,9 +25,21 @@ const CreditPage = () => {
         const newSigner = await provider.getSigner();
         const address = await newSigner.getAddress();
         
+        // Create contract instance
+        const loanContract = new ethers.Contract(
+          contractAddress,
+          LoanContractABI.abi,
+          newSigner
+        );
+        
         setAccount(address);
         setSigner(newSigner);
+        setContract(loanContract);
         setIsConnected(true);
+        
+        // Set up event listeners for real-time updates
+        setupEventListeners(loanContract, address);
+        
         return true;
       } catch (error) {
         console.error("Error connecting wallet:", error);
@@ -37,6 +50,42 @@ const CreditPage = () => {
       setError("MetaMask is not installed. Please install it to use this app.");
       return false;
     }
+  };
+
+  // Set up blockchain event listeners
+  const setupEventListeners = (contract, userAddress) => {
+    if (!contract) return;
+    
+    // Add event listener for LoanRepaid events
+    contract.removeAllListeners("LoanRepaid");
+    contract.on("LoanRepaid", (loanId) => {
+      console.log("Loan repaid event detected for loan ID:", loanId);
+      // After a loan is repaid, check for updated credit score
+      checkCreditScore();
+      showNotification("Loan repaid successfully! Your credit score has been updated.");
+    });
+    
+    // Let's add a custom event listener for CreditScoreUpdated
+    // Note: You'll need to add this event to your smart contract
+    contract.removeAllListeners("CreditScoreUpdated");
+    contract.on("CreditScoreUpdated", (user, newScore) => {
+      if (user.toLowerCase() === userAddress.toLowerCase()) {
+        console.log("Credit score updated event detected:", newScore);
+        setCreditScore(Number(newScore));
+        showNotification("Your credit score has been updated!");
+      }
+    });
+    
+    console.log("Event listeners set up for address:", userAddress);
+  };
+
+  // Show notification
+  const showNotification = (message) => {
+    setNotification(message);
+    // Auto-hide notification after 5 seconds
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
   };
 
   useEffect(() => {
@@ -64,43 +113,87 @@ const CreditPage = () => {
         } else {
           setAccount(null);
           setSigner(null);
+          setContract(null);
           setIsConnected(false);
         }
       });
     }
     
     return () => {
+      // Clean up event listeners
+      if (contract) {
+        contract.removeAllListeners();
+      }
       if (window.ethereum) {
         window.ethereum.removeListener('accountsChanged', () => {});
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (isConnected && signer) {
-      checkCreditScore();
-    }
-  }, [isConnected, signer]);
-
-  const checkCreditScore = async () => {
-    if (!signer) return;
+  
+  const repayLoan = async (loanId, amount) => {
+    if (!signer || !contract) return;
     
     setLoading(true);
     setError(null);
     
     try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        LoanContractABI.abi,
-        signer
-      );
+      // Convert amount to ethers if it's a string
+      let value;
+      if (typeof amount === 'string') {
+        value = ethers.parseEther(amount);
+      } else {
+        value = amount; // Assume it's already in the correct format
+      }
       
+      // Repay the loan
+      const tx = await contract.repayLoan(loanId, {
+        value: value
+      });
+      
+      console.log("Loan repayment transaction:", tx.hash);
+      showNotification("Loan repayment submitted. Waiting for confirmation...");
+      
+      // Wait for transaction to be mined
+      await tx.wait();
+      console.log("Loan repayment confirmed");
+      
+      // The contract event listener will update credit score automatically
+      // But let's check in case the event listener missed it
+      setTimeout(() => {
+        checkCreditScore();
+      }, 2000);
+      
+    } catch (err) {
+      console.error("Error repaying loan:", err);
+      setError(err.message || "Failed to repay loan");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isConnected && signer && contract) {
+      checkCreditScore();
+    }
+  }, [isConnected, signer, contract]);
+
+  // Update the checkCreditScore function to properly interact with the contract
+  const checkCreditScore = async () => {
+    if (!signer || !contract) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
       // First check if user has a credit score
       const hasCredit = await contract.hasCreditScore(account);
+      console.log("Has credit score:", hasCredit);
       setHasScore(hasCredit);
       
       if (hasCredit) {
+        // Get the credit score
         const score = await contract.getCreditScore();
+        console.log("Credit score:", Number(score));
         setCreditScore(Number(score));
       }
     } catch (err) {
@@ -108,32 +201,6 @@ const CreditPage = () => {
       setError(err.message || "Failed to check credit score");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const initializeCreditScore = async () => {
-    if (!signer) return;
-    
-    setInitializing(true);
-    setError(null);
-    
-    try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        LoanContractABI.abi,
-        signer
-      );
-      
-      const tx = await contract.initializeCreditScore();
-      await tx.wait();
-      
-      // After initialization, check the score
-      await checkCreditScore();
-    } catch (err) {
-      console.error("Error initializing credit score:", err);
-      setError(err.message || "Failed to initialize credit score");
-    } finally {
-      setInitializing(false);
     }
   };
 
@@ -182,6 +249,13 @@ const CreditPage = () => {
           {formatAddress(account)}
         </div>
       </div>
+      
+      {/* Real-time notification */}
+      {notification && (
+        <div className="bg-cyan-900/30 border border-cyan-700 text-cyan-400 px-4 py-3 rounded-lg mb-6 animate-pulse">
+          <p>{notification}</p>
+        </div>
+      )}
       
       {loading && (
         <div className="flex justify-center items-center p-8">
@@ -269,24 +343,11 @@ const CreditPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <p className="mb-6 text-gray-300 text-center">You don't have a credit score yet. Initialize your credit profile to apply for DeFi loans.</p>
-              <button
-                onClick={initializeCreditScore}
-                disabled={initializing}
-                className={`${
-                  initializing ? 'bg-cyan-700' : 'bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-700 hover:to-emerald-700'
-                } text-white px-6 py-3 rounded-md text-sm font-medium w-full transition-all duration-200 flex items-center justify-center`}
-              >
-                {initializing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                    Initializing...
-                  </>
-                ) : (
-                  'Initialize Credit Score'
-                )}
-              </button>
-              <p className="mt-4 text-gray-500 text-sm text-center">This will create your credit profile on the blockchain. Gas fees apply.</p>
+              <p className="mb-6 text-gray-300 text-center">You don't have a credit score yet. Your credit score will be established when you repay your first loan.</p>
+              <div className="mt-4 text-gray-500 text-sm text-center">
+                <p>Credit scores are automatically created when you interact with the lending protocol.</p>
+                <p className="mt-2">Apply for a loan and repay it to establish your credit history.</p>
+              </div>
             </div>
           )}
         </>

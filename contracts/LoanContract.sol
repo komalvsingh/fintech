@@ -29,6 +29,7 @@ contract LoanContract {
     );
     event LoanApproved(uint256 indexed loanId);
     event LoanRepaid(uint256 indexed loanId);
+    event CreditScoreUpdated(address indexed user, uint256 newScore);
 
     modifier onlyDAO() {
         require(msg.sender == daoContract, "Only DAO can call this function");
@@ -120,6 +121,7 @@ contract LoanContract {
                 }
             }
         }
+     emit CreditScoreUpdated(user, creditScores[user]);
     }
 
     function getCreditScore() external view returns (uint256) {

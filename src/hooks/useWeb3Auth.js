@@ -127,7 +127,7 @@ const useWeb3Auth = () => {
         window.ethereum.removeAllListeners('chainChanged');
       }
     };
-  }, []);
+  }, [checkConnection]); // Fix: Include checkConnection in dependencies
 
   return { 
     account, 

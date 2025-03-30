@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import DAOContractABI from '../../../lib/DAOContract.json';
 
 const DAOMembersPage = () => {
-  const daoContractAddress = "0x59A139652C16982cec62120854Ffa231f36B2AAD";
+  const daoContractAddress = "0x78dAfdDCa52A7DD3d130e7a0f4100b4972A32E8F";
   
   const [account, setAccount] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -15,6 +15,9 @@ const DAOMembersPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  // Add the missing state variables that were at the bottom of the file
+  const [pendingLoans, setPendingLoans] = useState([]);
+  const [requiredVotes, setRequiredVotes] = useState(3);
 
   // Connect to MetaMask
   const connectWallet = async () => {
@@ -205,6 +208,203 @@ const DAOMembersPage = () => {
     }
   };
 
+  // Add the functions that were at the bottom of the file
+  // Function to fetch pending loans
+  const fetchPendingLoans = async () => {
+    if (!signer) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const contract = new ethers.Contract(
+        daoContractAddress,
+        DAOContractABI.abi,
+        signer
+      );
+      
+      // Get required votes
+      try {
+        const votes = await contract.requiredVotes();
+        setRequiredVotes(Number(votes));
+      } catch (err) {
+        console.error("Error fetching required votes:", err);
+      }
+      
+      // Get pending loan IDs
+      const pendingLoanIds = await contract.getPendingLoans();
+      console.log("Pending loan IDs:", pendingLoanIds);
+      
+      if (pendingLoanIds.length === 0) {
+        setPendingLoans([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Get current user address
+      const userAddress = await signer.getAddress();
+      
+      // Fetch details for each loan
+      const loanDetailsPromises = pendingLoanIds.map(async (loanId) => {
+        try {
+          const details = await contract.getLoanDetails(loanId);
+          const hasVoted = await contract.hasUserVoted(loanId, userAddress);
+          
+          return {
+            id: loanId,
+            borrower: details.borrower,
+            amount: ethers.formatEther(details.amount),
+            repaymentDue: Number(details.repaymentDue),
+            isApproved: details.isApproved,
+            isPaid: details.isPaid,
+            voteCount: Number(details.voteCount),
+            hasVoted: hasVoted
+          };
+        } catch (err) {
+          console.error(`Error fetching details for loan ${loanId}:`, err);
+          return null;
+        }
+      });
+      
+      const loanDetails = await Promise.all(loanDetailsPromises);
+      const validLoans = loanDetails.filter(loan => loan !== null);
+      
+      console.log("Fetched loan details:", validLoans);
+      setPendingLoans(validLoans);
+      
+    } catch (err) {
+      console.error("Error fetching pending loans:", err);
+      setError("Failed to fetch pending loans: " + (err.message || "Unknown error"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to vote on a loan
+  const voteOnLoan = async (loanId) => {
+    if (!signer) {
+      setError("Please connect your wallet first");
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const contract = new ethers.Contract(
+        daoContractAddress,
+        DAOContractABI.abi,
+        signer
+      );
+      
+      console.log(`Voting on loan ${loanId}...`);
+      
+      // First check if the user is a member
+      const userAddress = await signer.getAddress();
+      const isMember = await contract.members(userAddress);
+      if (!isMember) {
+        setError("You must be a DAO member to vote on loans");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Check if user has already voted
+      const hasVoted = await contract.hasUserVoted(loanId, userAddress);
+      if (hasVoted) {
+        setError("You have already voted on this loan");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Use the voteOnLoan function with proper parameters
+      const tx = await contract.voteOnLoan(loanId, true, {
+        gasLimit: 500000 // Increase gas limit to prevent out of gas errors
+      });
+      
+      console.log("Transaction sent:", tx.hash);
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
+      
+      setSuccess(`Successfully voted on loan ${loanId}`);
+      
+      // Refresh the pending loans list
+      setTimeout(() => {
+        fetchPendingLoans();
+      }, 2000);
+      
+    } catch (err) {
+      console.error("Error voting on loan:", err);
+      
+      // Provide more helpful error messages
+      if (err.message.includes("execution reverted")) {
+        setError("Transaction reverted: " + (err.reason || "Unknown reason. This could be because the loan is already approved or you don't have permission."));
+      } else if (err.message.includes("user rejected")) {
+        setError("Transaction was rejected in your wallet.");
+      } else {
+        setError(err.message || "Failed to vote on loan");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to reject a loan
+  const rejectLoan = async (loanId) => {
+    if (!signer) {
+      setError("Please connect your wallet first");
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const contract = new ethers.Contract(
+        daoContractAddress,
+        DAOContractABI.abi,
+        signer
+      );
+      
+      console.log(`Rejecting loan ${loanId}...`);
+      
+      // Check if the user is a member
+      const userAddress = await signer.getAddress();
+      const isMember = await contract.members(userAddress);
+      if (!isMember) {
+        setError("You must be a DAO member to reject loans");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Use the rejectLoan function
+      const tx = await contract.rejectLoan(loanId, {
+        gasLimit: 500000 // Increase gas limit
+      });
+      
+      console.log("Transaction sent:", tx.hash);
+      
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
+      
+      setSuccess(`Successfully rejected loan ${loanId}`);
+      
+      // Refresh the pending loans list
+      setTimeout(() => {
+        fetchPendingLoans();
+      }, 2000);
+      
+    } catch (err) {
+      console.error("Error rejecting loan:", err);
+      setError(err.message || "Failed to reject loan");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Check connection and ownership on load
   useEffect(() => {
     const checkConnection = async () => {
@@ -262,6 +462,7 @@ const DAOMembersPage = () => {
     if (isConnected && signer) {
       checkOwnership();
       fetchMembers();
+      fetchPendingLoans(); // Also fetch pending loans when connected
     }
   }, [isConnected, signer]);
 
@@ -495,212 +696,3 @@ const DAOMembersPage = () => {
 };
 
 export default DAOMembersPage;
-
-// Add these state variables at the top with your other state variables
-const [pendingLoans, setPendingLoans] = useState([]);
-const [requiredVotes, setRequiredVotes] = useState(3);
-
-// Add this function to fetch pending loans
-const fetchPendingLoans = async () => {
-  if (!signer) return;
-  
-  setIsLoading(true);
-  setError(null);
-  
-  try {
-    const contract = new ethers.Contract(
-      daoContractAddress,
-      DAOContractABI.abi,
-      signer
-    );
-    
-    // Get required votes
-    try {
-      const votes = await contract.requiredVotes();
-      setRequiredVotes(Number(votes));
-    } catch (err) {
-      console.error("Error fetching required votes:", err);
-    }
-    
-    // Get pending loan IDs
-    const pendingLoanIds = await contract.getPendingLoans();
-    console.log("Pending loan IDs:", pendingLoanIds);
-    
-    if (pendingLoanIds.length === 0) {
-      setPendingLoans([]);
-      setIsLoading(false);
-      return;
-    }
-    
-    // Get current user address
-    const userAddress = await signer.getAddress();
-    
-    // Fetch details for each loan
-    const loanDetailsPromises = pendingLoanIds.map(async (loanId) => {
-      try {
-        const details = await contract.getLoanDetails(loanId);
-        const hasVoted = await contract.hasUserVoted(loanId, userAddress);
-        
-        return {
-          id: loanId,
-          borrower: details.borrower,
-          amount: ethers.formatEther(details.amount),
-          repaymentDue: Number(details.repaymentDue),
-          isApproved: details.isApproved,
-          isPaid: details.isPaid,
-          voteCount: Number(details.voteCount),
-          hasVoted: hasVoted
-        };
-      } catch (err) {
-        console.error(`Error fetching details for loan ${loanId}:`, err);
-        return null;
-      }
-    });
-    
-    const loanDetails = await Promise.all(loanDetailsPromises);
-    const validLoans = loanDetails.filter(loan => loan !== null);
-    
-    console.log("Fetched loan details:", validLoans);
-    setPendingLoans(validLoans);
-    
-  } catch (err) {
-    console.error("Error fetching pending loans:", err);
-    setError("Failed to fetch pending loans: " + (err.message || "Unknown error"));
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-// Add this function to vote on a loan
-const voteOnLoan = async (loanId) => {
-  if (!signer) {
-    setError("Please connect your wallet first");
-    return;
-  }
-  
-  setIsLoading(true);
-  setError(null);
-  setSuccess(null);
-  
-  try {
-    const contract = new ethers.Contract(
-      daoContractAddress,
-      DAOContractABI.abi,
-      signer
-    );
-    
-    console.log(`Voting on loan ${loanId}...`);
-    
-    // First check if the user is a member
-    const userAddress = await signer.getAddress();
-    const isMember = await contract.members(userAddress);
-    if (!isMember) {
-      setError("You must be a DAO member to vote on loans");
-      setIsLoading(false);
-      return;
-    }
-    
-    // Check if user has already voted
-    const hasVoted = await contract.hasUserVoted(loanId, userAddress);
-    if (hasVoted) {
-      setError("You have already voted on this loan");
-      setIsLoading(false);
-      return;
-    }
-    
-    // Use the voteOnLoan function with proper parameters
-    const tx = await contract.voteOnLoan(loanId, true, {
-      gasLimit: 500000 // Increase gas limit to prevent out of gas errors
-    });
-    
-    console.log("Transaction sent:", tx.hash);
-    
-    // Wait for transaction confirmation
-    const receipt = await tx.wait();
-    console.log("Transaction confirmed:", receipt);
-    
-    setSuccess(`Successfully voted on loan ${loanId}`);
-    
-    // Refresh the pending loans list
-    setTimeout(() => {
-      fetchPendingLoans();
-    }, 2000);
-    
-  } catch (err) {
-    console.error("Error voting on loan:", err);
-    
-    // Provide more helpful error messages
-    if (err.message.includes("execution reverted")) {
-      setError("Transaction reverted: " + (err.reason || "Unknown reason. This could be because the loan is already approved or you don't have permission."));
-    } else if (err.message.includes("user rejected")) {
-      setError("Transaction was rejected in your wallet.");
-    } else {
-      setError(err.message || "Failed to vote on loan");
-    }
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-// Add this function to reject a loan
-const rejectLoan = async (loanId) => {
-  if (!signer) {
-    setError("Please connect your wallet first");
-    return;
-  }
-  
-  setIsLoading(true);
-  setError(null);
-  setSuccess(null);
-  
-  try {
-    const contract = new ethers.Contract(
-      daoContractAddress,
-      DAOContractABI.abi,
-      signer
-    );
-    
-    console.log(`Rejecting loan ${loanId}...`);
-    
-    // Check if the user is a member
-    const userAddress = await signer.getAddress();
-    const isMember = await contract.members(userAddress);
-    if (!isMember) {
-      setError("You must be a DAO member to reject loans");
-      setIsLoading(false);
-      return;
-    }
-    
-    // Use the rejectLoan function
-    const tx = await contract.rejectLoan(loanId, {
-      gasLimit: 500000 // Increase gas limit
-    });
-    
-    console.log("Transaction sent:", tx.hash);
-    
-    const receipt = await tx.wait();
-    console.log("Transaction confirmed:", receipt);
-    
-    setSuccess(`Successfully rejected loan ${loanId}`);
-    
-    // Refresh the pending loans list
-    setTimeout(() => {
-      fetchPendingLoans();
-    }, 2000);
-    
-  } catch (err) {
-    console.error("Error rejecting loan:", err);
-    setError(err.message || "Failed to reject loan");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-// Update your useEffect to also fetch pending loans when connected
-useEffect(() => {
-  if (isConnected && signer) {
-    checkOwnership();
-    fetchMembers();
-    fetchPendingLoans(); // Add this line
-  }
-}, [isConnected, signer]);

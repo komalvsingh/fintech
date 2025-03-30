@@ -3,6 +3,7 @@ import Link from 'next/link';
 import React, { useState, useEffect } from 'react';
 import useWeb3Auth from '../hooks/useWeb3Auth';
 import { motion } from 'framer-motion';
+import DaoMembershipInfo from '../components/DaoMembershipInfo';
 
 const Dashboard = () => {
   const { account, connectWallet, isConnecting } = useWeb3Auth();
@@ -10,6 +11,8 @@ const Dashboard = () => {
   const isConnected = !!account;
   // Add loans state
   const [loans, setLoans] = useState([]);
+  // Add state for DAO membership info modal
+  const [showDaoInfo, setShowDaoInfo] = useState(false);
   
   // Demo data for UI preview (remove in production)
   useEffect(() => {
@@ -217,16 +220,15 @@ const Dashboard = () => {
             </div>
             
             <div className="mt-8">
-              <Link href="/governance">
-                <motion.div
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="bg-gradient-to-r from-blue-500/20 to-teal-500/20 border border-blue-500/30 p-4 rounded-lg text-center hover:from-blue-500/30 hover:to-teal-500/30 transition-all duration-300"
-                >
-                  <p className="text-gray-200 font-medium">Participate in Governance</p>
-                  <p className="text-sm text-gray-400 mt-1">3 active proposals</p>
-                </motion.div>
-              </Link>
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowDaoInfo(true)}
+                className="bg-gradient-to-r from-blue-500/20 to-teal-500/20 border border-blue-500/30 p-4 rounded-lg text-center hover:from-blue-500/30 hover:to-teal-500/30 transition-all duration-300 cursor-pointer"
+              >
+                <p className="text-gray-200 font-medium">Get DAO Membership</p>
+                <p className="text-sm text-gray-400 mt-1">Access exclusive features</p>
+              </motion.div>
             </div>
           </motion.div>
         </motion.div>
@@ -324,6 +326,13 @@ const Dashboard = () => {
           </motion.div>
         )}
       </motion.div>
+      
+      {/* DAO Membership Info Modal */}
+      {showDaoInfo && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <DaoMembershipInfo onDismiss={() => setShowDaoInfo(false)} />
+        </div>
+      )}
     </div>
   );
 };

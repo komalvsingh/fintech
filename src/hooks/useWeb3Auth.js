@@ -69,8 +69,8 @@ const useWeb3Auth = () => {
   // Disconnect wallet (this doesn't actually disconnect MetaMask, 
   // but rather resets the state in your app)
   const disconnect = () => {
-    setIsConnected(false);
-    setAddress(null);
+    setIsConnecting(false);
+    setAccount(null);
     setSigner(null);
     return true;
   };
@@ -106,12 +106,12 @@ const useWeb3Auth = () => {
       window.ethereum.on('accountsChanged', (accounts) => {
         if (accounts.length === 0) {
           // User disconnected their wallet
-          setIsConnected(false);
-          setAddress(null);
+          setIsConnecting(false);
+          setAccount(null);
           setSigner(null);
         } else {
           // Account changed
-          setAddress(accounts[0]);
+          setAccount(accounts[0]);
           checkConnection();
         }
       });

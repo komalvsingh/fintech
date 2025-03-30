@@ -15,11 +15,6 @@ const DAOPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [daoStats, setDaoStats] = useState({
-    totalMembers: 0,
-    totalLoans: 0,
-    activeLoanValue: 0
-  });
 
   // Connect to MetaMask
   const connectWallet = async () => {
@@ -103,7 +98,6 @@ const DAOPage = () => {
         // If user is a member, fetch loan requests
         if (memberStatus) {
           fetchLoanRequests();
-          fetchDAOStats();
         }
       } catch (err) {
         console.error("Error checking member status:", err);
@@ -114,33 +108,6 @@ const DAOPage = () => {
       checkMemberStatus();
     }
   }, [isConnected, account, signer]);
-
-  // Fetch DAO statistics
-  const fetchDAOStats = async () => {
-    if (!signer) return;
-    
-    try {
-      const contract = new ethers.Contract(
-        contractAddress,
-        DAOContractABI.abi,
-        signer
-      );
-      
-      // These function calls are hypothetical - you'll need to implement them in your contract
-      // or use alternative methods to get this data
-      const memberCount = await contract.getMemberCount().catch(() => 0);
-      const loanCount = await contract.getLoanCount().catch(() => 0);
-      const activeLoanValue = await contract.getActiveLoanValue().catch(() => 0);
-      
-      setDaoStats({
-        totalMembers: Number(memberCount || 0),
-        totalLoans: Number(loanCount || 0),
-        activeLoanValue: ethers.formatEther(activeLoanValue || 0)
-      });
-    } catch (err) {
-      console.error("Error fetching DAO stats:", err);
-    }
-  };
 
   // Fetch all loan requests
   const fetchLoanRequests = async () => {
@@ -217,7 +184,6 @@ const DAOPage = () => {
       
       setSuccess(`Added ${newMemberAddress} as a DAO member`);
       setNewMemberAddress("");
-      fetchDAOStats();
     } catch (err) {
       console.error("Error adding member:", err);
       setError(err.message || "Failed to add member");
@@ -266,7 +232,7 @@ const DAOPage = () => {
       
       await tx.wait();
       
-      setSuccess(`Vote submitted for loan #${loanId}`);
+      setSuccess(`Vote submitted for loan #${loanId.toString().substring(0, 8)}...`);
       
       // Refresh loan requests
       fetchLoanRequests();
@@ -310,7 +276,7 @@ const DAOPage = () => {
       
       await tx.wait();
       
-      setSuccess(`Loan #${loanId} rejected`);
+      setSuccess(`Loan #${loanId.toString().substring(0, 8)}... rejected`);
       
       // Refresh loan requests
       fetchLoanRequests();
@@ -327,9 +293,16 @@ const DAOPage = () => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
 
+  // Truncate loan ID for display
+  const truncateLoanId = (id) => {
+    if (!id) return "";
+    const idStr = id.toString();
+    return idStr.length > 10 ? `#${idStr.substring(0, 10)}...` : `#${idStr}`;
+  };
+
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+      <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-10">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">DeFi Credit DAO</h1>
@@ -370,7 +343,7 @@ const DAOPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 mt-10">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">DeFi Credit DAO</h1>
@@ -404,26 +377,6 @@ const DAOPage = () => {
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
             <p>{success}</p>
-          </div>
-        )}
-        
-        {/* DAO Stats Cards */}
-        {isMember && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-              <h3 className="text-gray-400 text-sm font-medium mb-2">Total Members</h3>
-              <p className="text-3xl font-bold text-cyan-400">{daoStats.totalMembers}</p>
-            </div>
-            
-            <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-              <h3 className="text-gray-400 text-sm font-medium mb-2">Total Loans</h3>
-              <p className="text-3xl font-bold text-teal-400">{daoStats.totalLoans}</p>
-            </div>
-            
-            <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-              <h3 className="text-gray-400 text-sm font-medium mb-2">Active Loan Value</h3>
-              <p className="text-3xl font-bold text-blue-400">{daoStats.activeLoanValue} ETH</p>
-            </div>
           </div>
         )}
         
@@ -531,10 +484,10 @@ const DAOPage = () => {
               ) : loanRequests.length > 0 ? (
                 <div className="space-y-4">
                   {loanRequests.map((request) => (
-                    <div key={request.id} className="bg-gray-700 rounded-lg p-5 border border-gray-600 hover:border-cyan-500 transition-colors">
+                    <div key={request.id.toString()} className="bg-gray-700 rounded-lg p-5 border border-gray-600 hover:border-cyan-500 transition-colors">
                       <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center">
-                          <span className="font-medium text-gray-100">Loan #{request.id.toString()}</span>
+                          <span className="font-medium text-gray-100">Loan {truncateLoanId(request.id)}</span>
                           <span className={`ml-3 px-2 py-1 rounded-full text-xs ${
                             request.approved 
                               ? 'bg-teal-900 text-teal-300 border border-teal-500' 
@@ -543,7 +496,7 @@ const DAOPage = () => {
                             {request.approved ? 'Approved' : 'Pending'}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-400">Votes: {request.votes}</div>
+                        <div className="text-xs text-yellow-400">Votes: {request.votes}</div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 mb-4">
